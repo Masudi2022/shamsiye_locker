@@ -1,15 +1,9 @@
 import React from "react";
 import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer";
+import SHAMSIYE_LOGO from "../assets/images/shamsiye.png";
 
 const BORDER = 2;
 const INCH = 72;
-
-/**
- * ✅ PDF Layout:
- * Row 1: Picture | Form
- * Row 2: Student Name
- * ✅ 3 columns × 7 rows = 21 tags
- */
 
 const TAG_W = 2.4 * INCH;
 const TAG_H = 1.35 * INCH;
@@ -84,8 +78,8 @@ const styles = StyleSheet.create({
   },
 
   picture: {
-    width: "100%",
-    height: "100%",
+    width: LOGO_SIZE,
+    height: LOGO_SIZE,
     objectFit: "contain",
   },
 
@@ -123,12 +117,14 @@ const styles = StyleSheet.create({
 function TagPDF({ student, logoDataUrl }) {
   const formLabel = formatStreamLabel(getStudentStream(student));
 
+  const logoSrc = logoDataUrl || SHAMSIYE_LOGO;
+
   return (
     <View style={styles.tag}>
       <View style={styles.firstRow}>
         <View style={styles.pictureColumn}>
           <View style={styles.pictureBox}>
-            {logoDataUrl ? <Image style={styles.picture} src={logoDataUrl} /> : null}
+            <Image style={styles.picture} src={logoSrc} />
           </View>
         </View>
 
