@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PDFDownloadLink } from "@react-pdf/renderer";
 
@@ -13,6 +13,20 @@ const load = (k, fallback) => {
   } catch {
     return fallback;
   }
+};
+
+const imageToBase64 = async (imageUrl) => {
+  const response = await fetch(imageUrl);
+  const blob = await response.blob();
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+
+    reader.readAsDataURL(blob);
+  });
 };
 
 const formatStreamLabel = (stream) => {
@@ -42,6 +56,16 @@ function TagPreview({ student }) {
 export default function Verify() {
   const nav = useNavigate();
 
+  const [logoDataUrl, setLogoDataUrl] = useState(null);
+
+  useEffect(() => {
+    imageToBase64(SHAMSIYE_LOGO)
+      .then(setLogoDataUrl)
+      .catch((error) => {
+        console.error("Logo failed to load:", error);
+      });
+  }, []);
+
   const studentsRaw = useMemo(() => load("students", []), []);
 
   const students = useMemo(() => {
@@ -54,8 +78,6 @@ export default function Verify() {
       photoDataUrl: s?.photoDataUrl ?? "",
     }));
   }, [studentsRaw]);
-
-  const logoDataUrl = SHAMSIYE_LOGO;
 
   const S = {
     page: {
@@ -162,6 +184,16 @@ export default function Verify() {
       fontWeight: 900,
       color: "#ffffff",
       boxShadow: "0 10px 20px rgba(22, 163, 74, 0.18)",
+    },
+
+    btnDisabled: {
+      padding: "10px 14px",
+      borderRadius: 12,
+      border: "1px solid #94a3b8",
+      background: "#94a3b8",
+      cursor: "not-allowed",
+      fontWeight: 900,
+      color: "#ffffff",
     },
 
     btnDanger: {
@@ -347,7 +379,7 @@ export default function Verify() {
         <div style={S.header}>
           <div style={S.brand}>
             <div style={S.logoWrap}>
-              <img src={logoDataUrl} alt="Shamsiye Logo" style={S.logo} />
+              <img src={logoDataUrl || SHAMSIYE_LOGO} alt="Shamsiye Logo" style={S.logo} />
             </div>
 
             <div style={{ minWidth: 0 }}>
@@ -364,14 +396,22 @@ export default function Verify() {
               ← Back
             </button>
 
-            <PDFDownloadLink
-              document={<TagsDocument students={students} logoDataUrl={logoDataUrl} />}
-              fileName="shamsiye-class-locker-tags.pdf"
-            >
-              {({ loading }) => (
-                <button style={S.btnGreen}>{loading ? "Preparing PDF..." : "Download PDF"}</button>
-              )}
-            </PDFDownloadLink>
+            {logoDataUrl ? (
+              <PDFDownloadLink
+                document={<TagsDocument students={students} logoDataUrl={logoDataUrl} />}
+                fileName="shamsiye-class-locker-tags.pdf"
+              >
+                {({ loading }) => (
+                  <button style={S.btnGreen}>
+                    {loading ? "Preparing PDF..." : "Download PDF"}
+                  </button>
+                )}
+              </PDFDownloadLink>
+            ) : (
+              <button style={S.btnDisabled} disabled>
+                Loading Logo...
+              </button>
+            )}
 
             <button style={S.btnDanger} onClick={clearStudents}>
               Clear Students
