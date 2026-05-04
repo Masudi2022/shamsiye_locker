@@ -23,6 +23,15 @@ const BRAND = {
   white: "#FFFFFF",
 };
 
+const FORM_STREAM_OPTIONS = {
+  ONE: ["A", "B", "C"],
+  TWO: ["A", "B", "C"],
+  THREE: ["A", "B", "C"],
+  FOUR: ["A", "B", "C"],
+  FIVE: ["HGE", "EGM", "PCM", "PCB", "CBG"],
+  SIX: ["HGE", "EGM", "PCM", "PCB", "CBG"],
+};
+
 const load = (key, fallback) => {
   try {
     const value = localStorage.getItem(key);
@@ -61,6 +70,18 @@ const FORM_ALIASES = {
   FOUR: "FOUR",
   FORMFOUR: "FOUR",
   FORM4: "FOUR",
+
+  "5": "FIVE",
+  "05": "FIVE",
+  FIVE: "FIVE",
+  FORMFIVE: "FIVE",
+  FORM5: "FIVE",
+
+  "6": "SIX",
+  "06": "SIX",
+  SIX: "SIX",
+  FORMSIX: "SIX",
+  FORM6: "SIX",
 };
 
 const normalizeForm = (value) => {
@@ -68,25 +89,36 @@ const normalizeForm = (value) => {
   return FORM_ALIASES[clean] || U(value) || "ONE";
 };
 
-const normalizeStreamLetter = (value) => {
-  const clean = U(value).replace(/[^A-Z]/g, "");
-  return clean.charAt(0) || "A";
+const isAdvancedForm = (form) => {
+  const cleanForm = normalizeForm(form);
+  return cleanForm === "FIVE" || cleanForm === "SIX";
+};
+
+const getStreamLabel = (form) => {
+  return isAdvancedForm(form) ? "COMBINATION" : "STREAM";
+};
+
+const getStreamsForForm = (form) => {
+  const cleanForm = normalizeForm(form);
+  return FORM_STREAM_OPTIONS[cleanForm] || ["A", "B", "C"];
+};
+
+const normalizeStream = (value, form = "ONE") => {
+  const clean = U(value).replace(/[^A-Z0-9]/g, "");
+  const availableStreams = getStreamsForForm(form);
+
+  if (!clean) return availableStreams[0] || "A";
+
+  return clean;
 };
 
 const formatClassLabel = (form, stream) => {
-  return `${normalizeForm(form)} ${normalizeStreamLetter(stream)}`;
+  const safeForm = normalizeForm(form);
+  const safeStream = normalizeStream(stream, safeForm);
+
+  return `${safeForm} ${safeStream}`;
 };
 
-/**
- * Supports:
- * - { form: "ONE", stream: "B" }
- * - { form: "one", stream: "b" }
- * - { stream: "ONE B" }
- * - { form: "ONE B" }
- * - "ONE B"
- * - "1 A"
- * - "1A"
- */
 const parseFormAndStream = (input, maybeStream) => {
   if (typeof input === "object" && input !== null) {
     const objectForm = input.form;
@@ -105,15 +137,17 @@ const parseFormAndStream = (input, maybeStream) => {
 
       const streamLooksCombined =
         streamString.includes(" ") ||
-        /^\d+[A-Z]$/.test(streamCompact) ||
-        /^(ONE|TWO|THREE|FOUR)[A-Z]$/.test(streamCompact);
+        /^\d+[A-Z0-9]{1,5}$/.test(streamCompact) ||
+        /^(ONE|TWO|THREE|FOUR|FIVE|SIX)[A-Z0-9]{1,5}$/.test(streamCompact);
 
-      if (!streamLooksCombined && streamString.length <= 2) {
-        return {
-          form: formClean,
-          stream: normalizeStreamLetter(objectStream),
-        };
+      if (streamLooksCombined) {
+        return parseFormAndStream(objectStream);
       }
+
+      return {
+        form: formClean,
+        stream: normalizeStream(objectStream, formClean),
+      };
     }
 
     if (objectClass) return parseFormAndStream(objectClass);
@@ -122,51 +156,74 @@ const parseFormAndStream = (input, maybeStream) => {
   }
 
   if (maybeStream) {
+    const formClean = normalizeForm(input);
+
     return {
-      form: normalizeForm(input),
-      stream: normalizeStreamLetter(maybeStream),
+      form: formClean,
+      stream: normalizeStream(maybeStream, formClean),
     };
   }
 
   const raw = U(input);
-  const spaced = raw.replace(/[-_/]+/g, " ").replace(/\s+/g, " ").trim();
-  const compact = raw.replace(/\s+/g, "");
+  const spaced = raw
+    .replace(/[-_/]+/g, " ")
+    .replace(/\bFORM\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  let match = spaced.match(/^(ONE|TWO|THREE|FOUR)\s+([A-Z])$/);
+  const compact = spaced.replace(/\s+/g, "");
+
+  let match = spaced.match(
+    /^(ONE|TWO|THREE|FOUR|FIVE|SIX)\s+([A-Z0-9]{1,5})$/
+  );
+
   if (match) {
+    const formClean = normalizeForm(match[1]);
+
     return {
-      form: normalizeForm(match[1]),
-      stream: normalizeStreamLetter(match[2]),
+      form: formClean,
+      stream: normalizeStream(match[2], formClean),
     };
   }
 
-  match = spaced.match(/^(\d+)\s+([A-Z])$/);
+  match = spaced.match(/^(\d+)\s+([A-Z0-9]{1,5})$/);
+
   if (match) {
+    const formClean = normalizeForm(match[1]);
+
     return {
-      form: normalizeForm(match[1]),
-      stream: normalizeStreamLetter(match[2]),
+      form: formClean,
+      stream: normalizeStream(match[2], formClean),
     };
   }
 
-  match = compact.match(/^(ONE|TWO|THREE|FOUR)([A-Z])$/);
+  match = compact.match(/^(ONE|TWO|THREE|FOUR|FIVE|SIX)([A-Z0-9]{1,5})$/);
+
   if (match) {
+    const formClean = normalizeForm(match[1]);
+
     return {
-      form: normalizeForm(match[1]),
-      stream: normalizeStreamLetter(match[2]),
+      form: formClean,
+      stream: normalizeStream(match[2], formClean),
     };
   }
 
-  match = compact.match(/^(\d+)([A-Z])$/);
+  match = compact.match(/^(\d+)([A-Z0-9]{1,5})$/);
+
   if (match) {
+    const formClean = normalizeForm(match[1]);
+
     return {
-      form: normalizeForm(match[1]),
-      stream: normalizeStreamLetter(match[2]),
+      form: formClean,
+      stream: normalizeStream(match[2], formClean),
     };
   }
+
+  const formClean = normalizeForm(spaced || "ONE");
 
   return {
-    form: normalizeForm(raw || "ONE"),
-    stream: "A",
+    form: formClean,
+    stream: getStreamsForForm(formClean)[0] || "A",
   };
 };
 
@@ -178,10 +235,6 @@ const getYear = (student) => {
   return student?.year || student?.session || CURRENT_YEAR;
 };
 
-/**
- * Converts the imported logo image into a safe PNG base64 data URL.
- * This is better for @react-pdf/renderer than passing a Vite image path directly.
- */
 const convertImageToSafePngDataUrl = (imageUrl) => {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
@@ -200,6 +253,7 @@ const convertImageToSafePngDataUrl = (imageUrl) => {
         }
 
         const ratio = Math.min(maxSize / width, maxSize / height, 1);
+
         width = Math.round(width * ratio);
         height = Math.round(height * ratio);
 
@@ -207,10 +261,12 @@ const convertImageToSafePngDataUrl = (imageUrl) => {
         canvas.height = height;
 
         const ctx = canvas.getContext("2d");
+
         ctx.clearRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
 
         const pngDataUrl = canvas.toDataURL("image/png");
+
         resolve(pngDataUrl);
       } catch (error) {
         reject(error);
@@ -257,9 +313,9 @@ function TagPreview({ student }) {
           </div>
 
           <div>
-            <b>STREAM</b>
+            <b>{getStreamLabel(form)}</b>
             <span>:</span>
-            <strong>{normalizeStreamLetter(stream)}</strong>
+            <strong>{normalizeStream(stream, form)}</strong>
           </div>
 
           <div>
@@ -327,20 +383,19 @@ export default function Verify() {
     return studentsRaw.map((student) => {
       const parts = getStudentClassParts(student);
       const safeForm = normalizeForm(parts.form);
-      const safeStream = normalizeStreamLetter(parts.stream);
+      const safeStream = normalizeStream(parts.stream, safeForm);
       const safeYear = getYear(student);
+      const classLabel = formatClassLabel(safeForm, safeStream);
 
       return {
         id: student?.id,
         name: U(student?.name || "STUDENT NAME"),
 
-        // New separated structure
         form: safeForm,
         stream: safeStream,
 
-        // Compatibility labels
-        className: formatClassLabel(safeForm, safeStream),
-        formStream: formatClassLabel(safeForm, safeStream),
+        className: classLabel,
+        formStream: classLabel,
 
         year: safeYear,
         photoDataUrl: student?.photoDataUrl || "",
@@ -348,24 +403,22 @@ export default function Verify() {
     });
   }, [studentsRaw]);
 
-  /**
-   * This keeps PDF compatible even if TagsDocument.jsx still expects old data like "ONE B".
-   * Preview uses separated form/stream.
-   * PDF receives a safe class label too.
-   */
   const pdfStudents = useMemo(() => {
     return students.map((student) => {
       const classLabel = formatClassLabel(student.form, student.stream);
 
       return {
         ...student,
-        form: classLabel,
-        stream: classLabel,
+
+        form: student.form,
+        stream: student.stream,
+
         className: classLabel,
         formStream: classLabel,
 
         originalForm: student.form,
         originalStream: student.stream,
+        streamLabel: getStreamLabel(student.form),
       };
     });
   }, [students]);
@@ -382,14 +435,16 @@ export default function Verify() {
       minHeight: "100vh",
       background:
         "linear-gradient(180deg, #f1fbf0 0%, #ffffff 42%, #f8fafc 100%)",
-      padding: "24px 16px",
+      padding: "clamp(12px, 2.5vw, 24px)",
       fontFamily:
         'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial',
       color: BRAND.black,
+      overflowX: "hidden",
     },
 
     container: {
-      maxWidth: 1260,
+      width: "100%",
+      maxWidth: 1320,
       margin: "0 auto",
     },
 
@@ -397,7 +452,7 @@ export default function Verify() {
       background: BRAND.white,
       border: `1px solid ${BRAND.border}`,
       borderRadius: 22,
-      padding: 20,
+      padding: "clamp(14px, 2.4vw, 20px)",
       boxShadow: "0 18px 42px rgba(46, 143, 45, 0.11)",
       display: "flex",
       alignItems: "center",
@@ -411,6 +466,7 @@ export default function Verify() {
       alignItems: "center",
       gap: 15,
       minWidth: 0,
+      flex: "1 1 360px",
     },
 
     logoWrap: {
@@ -435,7 +491,7 @@ export default function Verify() {
 
     title: {
       margin: 0,
-      fontSize: 22,
+      fontSize: "clamp(18px, 2.4vw, 22px)",
       fontWeight: 950,
       lineHeight: 1.1,
       color: BRAND.black,
@@ -443,23 +499,10 @@ export default function Verify() {
 
     sub: {
       margin: "7px 0 0",
-      fontSize: 13,
+      fontSize: "clamp(12px, 1.8vw, 13px)",
       color: BRAND.muted,
       maxWidth: 760,
-    },
-
-    pill: {
-      display: "inline-flex",
-      gap: 8,
-      alignItems: "center",
-      padding: "8px 12px",
-      borderRadius: 999,
-      background: BRAND.greenSoft,
-      border: `1px solid ${BRAND.border}`,
-      color: BRAND.greenDark,
-      fontSize: 12,
-      fontWeight: 900,
-      marginTop: 10,
+      lineHeight: 1.5,
     },
 
     actions: {
@@ -467,6 +510,8 @@ export default function Verify() {
       gap: 10,
       flexWrap: "wrap",
       alignItems: "center",
+      justifyContent: "flex-end",
+      flex: "0 1 auto",
     },
 
     btn: {
@@ -477,6 +522,7 @@ export default function Verify() {
       cursor: "pointer",
       fontWeight: 950,
       color: BRAND.black,
+      minHeight: 44,
     },
 
     btnPrimaryLink: {
@@ -503,6 +549,7 @@ export default function Verify() {
       cursor: "not-allowed",
       fontWeight: 950,
       color: BRAND.white,
+      minHeight: 44,
     },
 
     btnDanger: {
@@ -513,13 +560,14 @@ export default function Verify() {
       cursor: "pointer",
       fontWeight: 950,
       color: "#9f1239",
+      minHeight: 44,
     },
 
     section: {
       background: BRAND.white,
       border: `1px solid ${BRAND.border}`,
       borderRadius: 24,
-      padding: 20,
+      padding: "clamp(14px, 2.4vw, 20px)",
       marginTop: 18,
       boxShadow: "0 14px 34px rgba(15, 23, 42, 0.07)",
     },
@@ -534,15 +582,9 @@ export default function Verify() {
 
     sectionTitle: {
       margin: 0,
-      fontSize: 17,
+      fontSize: "clamp(15px, 2vw, 17px)",
       fontWeight: 950,
       color: BRAND.black,
-    },
-
-    sectionSub: {
-      margin: "7px 0 0",
-      fontSize: 13,
-      color: BRAND.muted,
     },
 
     empty: {
@@ -573,11 +615,37 @@ export default function Verify() {
           box-sizing: border-box;
         }
 
+        html,
+        body {
+          overflow-x: hidden;
+        }
+
+        button,
+        a {
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .verifyHeader {
+          width: 100%;
+        }
+
+        .verifyActions button,
+        .verifyActions a {
+          white-space: nowrap;
+          transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+        }
+
+        .verifyActions button:hover,
+        .verifyActions a:hover {
+          transform: translateY(-1px);
+        }
+
         .previewGrid {
           margin-top: 20px;
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-          gap: 22px;
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 370px), 1fr));
+          gap: clamp(14px, 2.2vw, 22px);
+          align-items: stretch;
         }
 
         .tagPreview {
@@ -589,12 +657,13 @@ export default function Verify() {
           background: ${BRAND.white};
           box-shadow: 0 22px 46px rgba(15, 23, 42, 0.12);
           padding-bottom: 24px;
+          width: 100%;
         }
 
         .previewWatermark {
           position: absolute;
-          width: 220px;
-          height: 220px;
+          width: clamp(150px, 32vw, 220px);
+          height: clamp(150px, 32vw, 220px);
           object-fit: contain;
           opacity: 0.04;
           left: 50%;
@@ -626,15 +695,15 @@ export default function Verify() {
           border-bottom: 1px solid ${BRAND.border};
           display: flex;
           align-items: center;
-          gap: 14px;
-          padding: 14px 20px;
+          gap: clamp(10px, 1.7vw, 14px);
+          padding: clamp(12px, 2vw, 14px) clamp(14px, 2.4vw, 20px);
           overflow: hidden;
         }
 
         .previewHeader::after {
           content: "";
           position: absolute;
-          left: 20px;
+          left: clamp(14px, 2.4vw, 20px);
           bottom: 0;
           width: 42%;
           height: 3px;
@@ -642,8 +711,8 @@ export default function Verify() {
         }
 
         .previewLogoCircle {
-          width: 52px;
-          height: 52px;
+          width: clamp(44px, 7vw, 52px);
+          height: clamp(44px, 7vw, 52px);
           border-radius: 14px;
           background: ${BRAND.white};
           display: grid;
@@ -671,7 +740,7 @@ export default function Verify() {
 
         .previewInstitute {
           color: ${BRAND.black};
-          font-size: 20px;
+          font-size: clamp(15px, 2.3vw, 20px);
           font-weight: 950;
           letter-spacing: .8px;
           line-height: 1;
@@ -685,9 +754,9 @@ export default function Verify() {
         .previewMotto {
           margin-top: 7px;
           color: ${BRAND.greenDark};
-          font-size: 8px;
+          font-size: clamp(6px, 1vw, 8px);
           font-weight: 950;
-          letter-spacing: 1.8px;
+          letter-spacing: clamp(1px, .28vw, 1.8px);
           position: relative;
           z-index: 2;
           white-space: nowrap;
@@ -697,22 +766,24 @@ export default function Verify() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          gap: 22px;
-          padding: 26px 28px 14px;
+          gap: clamp(12px, 2.4vw, 22px);
+          padding: clamp(18px, 2.8vw, 26px) clamp(16px, 3vw, 28px) 14px;
         }
 
         .previewDetails {
           flex: 1;
           display: grid;
-          gap: 12px;
+          gap: clamp(8px, 1.6vw, 12px);
+          min-width: 0;
         }
 
         .previewDetails div {
           display: grid;
-          grid-template-columns: 82px 16px 1fr;
+          grid-template-columns: clamp(86px, 21vw, 112px) 14px minmax(0, 1fr);
           align-items: center;
-          font-size: 14px;
+          font-size: clamp(10.5px, 1.5vw, 14px);
           color: ${BRAND.black};
+          min-width: 0;
         }
 
         .previewDetails b,
@@ -721,15 +792,22 @@ export default function Verify() {
           color: ${BRAND.black};
         }
 
+        .previewDetails strong {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
         .previewPhoto {
-          width: 98px;
-          height: 98px;
-          border-radius: 18px;
+          width: clamp(66px, 12vw, 98px);
+          height: clamp(66px, 12vw, 98px);
+          border-radius: clamp(14px, 2vw, 18px);
           border: 1.5px solid ${BRAND.border};
           background: ${BRAND.white};
           display: grid;
           place-items: center;
-          padding: 10px;
+          padding: clamp(7px, 1.4vw, 10px);
           flex-shrink: 0;
           box-shadow: 0 10px 22px rgba(46, 143, 45, 0.12);
           overflow: hidden;
@@ -743,14 +821,14 @@ export default function Verify() {
 
         .previewNameBand {
           position: relative;
-          margin: 16px 28px 0;
-          min-height: 46px;
+          margin: clamp(12px, 2vw, 16px) clamp(16px, 3vw, 28px) 0;
+          min-height: clamp(42px, 6vw, 46px);
           border-radius: 16px;
           background: ${BRAND.greenDark};
           color: ${BRAND.white};
           display: grid;
           place-items: center;
-          padding: 10px 54px;
+          padding: 10px clamp(36px, 8vw, 54px);
           box-shadow: inset 0 -2px 0 rgba(0,0,0,.08);
           overflow: hidden;
         }
@@ -760,7 +838,7 @@ export default function Verify() {
           content: "";
           position: absolute;
           top: 50%;
-          width: 24px;
+          width: clamp(16px, 4vw, 24px);
           height: 4px;
           background: ${BRAND.blue};
           border-radius: 999px;
@@ -768,21 +846,22 @@ export default function Verify() {
         }
 
         .previewNameBand::before {
-          left: 18px;
+          left: clamp(12px, 3vw, 18px);
         }
 
         .previewNameBand::after {
-          right: 18px;
+          right: clamp(12px, 3vw, 18px);
         }
 
         .previewNameBand span {
-          font-size: 17px;
+          font-size: clamp(12px, 2vw, 17px);
           font-weight: 950;
-          letter-spacing: 1.4px;
+          letter-spacing: clamp(.6px, .22vw, 1.4px);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
           max-width: 100%;
+          text-align: center;
         }
 
         .bottomAccent {
@@ -811,65 +890,132 @@ export default function Verify() {
           background: ${BRAND.greenDeep};
         }
 
-        @media (max-width: 620px) {
+        @media (min-width: 1180px) {
+          .previewGrid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+        }
+
+        @media (min-width: 760px) and (max-width: 1179px) {
+          .previewGrid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 759px) {
           .previewGrid {
             grid-template-columns: 1fr;
           }
 
-          .previewInstitute {
-            font-size: 16px;
+          .verifyHeader {
+            align-items: stretch !important;
           }
 
-          .previewMotto {
-            font-size: 6px;
+          .verifyActions {
+            width: 100% !important;
+            justify-content: stretch !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px !important;
           }
 
-          .previewDetails div {
-            grid-template-columns: 70px 12px 1fr;
-            font-size: 11px;
+          .verifyActions button,
+          .verifyActions a {
+            width: 100% !important;
+            text-align: center;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .verifyBrand {
+            align-items: flex-start !important;
           }
 
-          .previewPhoto {
-            width: 74px;
-            height: 74px;
+          .verifyLogoWrap {
+            width: 52px !important;
+            height: 52px !important;
+            border-radius: 15px !important;
           }
 
-          .previewNameBand {
-            padding: 10px 42px;
-          }
-
-          .previewNameBand span {
-            font-size: 13px;
+          .verifyActions {
+            grid-template-columns: 1fr !important;
           }
 
           .tagPreview {
-            min-height: 245px;
+            min-height: 238px;
+          }
+
+          .previewHeader {
+            min-height: 68px;
+          }
+
+          .previewBody {
+            align-items: flex-start;
+          }
+
+          .previewNameBand span {
+            white-space: normal;
+            line-height: 1.15;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+          }
+        }
+
+        @media (max-width: 390px) {
+          .previewBody {
+            padding-left: 12px;
+            padding-right: 12px;
+            gap: 10px;
+          }
+
+          .previewDetails div {
+            grid-template-columns: 80px 9px minmax(0, 1fr);
+            font-size: 10px;
+          }
+
+          .previewPhoto {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            padding: 6px;
+          }
+
+          .previewNameBand {
+            margin-left: 12px;
+            margin-right: 12px;
+            padding-left: 30px;
+            padding-right: 30px;
+          }
+
+          .previewInstitute {
+            font-size: 14px;
+          }
+
+          .previewMotto {
+            font-size: 5.8px;
           }
         }
       `}</style>
 
       <div style={S.container}>
-        <div style={S.header}>
-          <div style={S.brand}>
-            <div style={S.logoWrap}>
+        <div style={S.header} className="verifyHeader">
+          <div style={S.brand} className="verifyBrand">
+            <div style={S.logoWrap} className="verifyLogoWrap">
               <img src={SHAMSIYE_LOGO} alt="Shamsiye Logo" style={S.logo} />
             </div>
 
             <div style={{ minWidth: 0 }}>
-              <h2 style={S.title}>Verify & Export  Tags</h2>
+              <h2 style={S.title}>Verify & Export Tags</h2>
 
               <p style={S.sub}>
                 Preview your printable student tags before downloading the PDF.
                 The logo is prepared safely for the PDF document.
               </p>
-
-              <div style={S.pill}>
-                ✅ No ID Number • Form & Stream separated • Logo included
-              </div>
             </div>
           </div>
 
-          <div style={S.actions}>
+          <div style={S.actions} className="verifyActions">
             <button style={S.btn} onClick={() => nav("/generator")}>
               ← Back
             </button>
@@ -925,11 +1071,6 @@ export default function Verify() {
             <div style={S.sectionTop}>
               <div>
                 <h3 style={S.sectionTitle}>Tag Preview ({students.length})</h3>
-
-                <p style={S.sectionSub}>
-                  Preview and PDF export both use separated form and stream
-                  values.
-                </p>
               </div>
             </div>
 

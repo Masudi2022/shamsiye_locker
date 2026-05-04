@@ -3,8 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { v4 as uuid } from "uuid";
 import SHAMSIYE_LOGO from "../assets/images/shamsiye.jpeg";
 
-const FORMS = ["ONE", "TWO", "THREE", "FOUR"];
-const STREAMS = ["A", "B", "C"];
+const FORMS = ["ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX"];
+
+const FORM_STREAM_OPTIONS = {
+  ONE: ["A", "B", "C"],
+  TWO: ["A", "B", "C"],
+  THREE: ["A", "B", "C"],
+  FOUR: ["A", "B", "C"],
+  FIVE: ["HGE", "EGM", "PCM", "PCB", "CBG"],
+  SIX: ["HGE", "EGM", "PCM", "PCB", "CBG"],
+};
 
 const CURRENT_YEAR = "2026";
 
@@ -39,19 +47,11 @@ const save = (key, value) => {
   localStorage.setItem(key, JSON.stringify(value));
 };
 
-/**
- * General uppercase formatter.
- * This trims, so DO NOT use it directly while typing names.
- */
 const U = (value) => {
   if (value == null) return "";
   return String(value).toUpperCase().trim();
 };
 
-/**
- * Use this while typing names.
- * It keeps normal spaces working.
- */
 const formatNameWhileTyping = (value) => {
   if (value == null) return "";
 
@@ -60,9 +60,6 @@ const formatNameWhileTyping = (value) => {
     .replace(/\s{2,}/g, " ");
 };
 
-/**
- * Use this only when saving or displaying final names.
- */
 const sanitizeNameForSave = (value) => {
   if (value == null) return "";
 
@@ -96,6 +93,18 @@ const FORM_ALIASES = {
   FOUR: "FOUR",
   FORMFOUR: "FOUR",
   FORM4: "FOUR",
+
+  "5": "FIVE",
+  "05": "FIVE",
+  FIVE: "FIVE",
+  FORMFIVE: "FIVE",
+  FORM5: "FIVE",
+
+  "6": "SIX",
+  "06": "SIX",
+  SIX: "SIX",
+  FORMSIX: "SIX",
+  FORM6: "SIX",
 };
 
 const normalizeForm = (value) => {
@@ -103,25 +112,33 @@ const normalizeForm = (value) => {
   return FORM_ALIASES[clean] || U(value) || "ONE";
 };
 
-const normalizeStreamLetter = (value) => {
-  const clean = U(value).replace(/[^A-Z]/g, "");
-  return clean.charAt(0) || "A";
+const isAdvancedForm = (form) => {
+  const cleanForm = normalizeForm(form);
+  return cleanForm === "FIVE" || cleanForm === "SIX";
+};
+
+const getStreamLabel = (form) => {
+  return isAdvancedForm(form) ? "COMBINATION" : "STREAM";
+};
+
+const getStreamsForForm = (form) => {
+  const cleanForm = normalizeForm(form);
+  return FORM_STREAM_OPTIONS[cleanForm] || ["A", "B", "C"];
+};
+
+const normalizeStream = (value, form = "ONE") => {
+  const clean = U(value).replace(/[^A-Z0-9]/g, "");
+  const availableStreams = getStreamsForForm(form);
+
+  if (!clean) return availableStreams[0] || "A";
+
+  return clean;
 };
 
 const cleanClassCode = (form, stream) => {
-  return `${normalizeForm(form)}${normalizeStreamLetter(stream)}`;
+  return `${normalizeForm(form)}${normalizeStream(stream, form)}`;
 };
 
-/**
- * Supports:
- * - { form: "ONE", stream: "B" }
- * - { form: "one", stream: "b" }
- * - { stream: "ONE B" }
- * - { form: "ONE B" }
- * - "ONE B"
- * - "1 A"
- * - "1A"
- */
 const parseFormAndStream = (input, maybeStream) => {
   if (typeof input === "object" && input !== null) {
     const objectForm = input.form;
@@ -135,21 +152,11 @@ const parseFormAndStream = (input, maybeStream) => {
 
     if (objectForm && objectStream) {
       const formClean = normalizeForm(objectForm);
-      const streamString = U(objectStream);
 
-      const streamLooksCombined =
-        streamString.includes(" ") ||
-        /^\d+[A-Z]$/.test(streamString.replace(/\s+/g, "")) ||
-        /^(ONE|TWO|THREE|FOUR)[A-Z]$/.test(
-          streamString.replace(/\s+/g, "")
-        );
-
-      if (!streamLooksCombined && streamString.length <= 2) {
-        return {
-          form: formClean,
-          stream: normalizeStreamLetter(objectStream),
-        };
-      }
+      return {
+        form: formClean,
+        stream: normalizeStream(objectStream, formClean),
+      };
     }
 
     if (objectClass) return parseFormAndStream(objectClass);
@@ -158,61 +165,83 @@ const parseFormAndStream = (input, maybeStream) => {
   }
 
   if (maybeStream) {
+    const formClean = normalizeForm(input);
+
     return {
-      form: normalizeForm(input),
-      stream: normalizeStreamLetter(maybeStream),
+      form: formClean,
+      stream: normalizeStream(maybeStream, formClean),
     };
   }
 
   const raw = U(input);
-  const spaced = raw.replace(/[-_/]+/g, " ").replace(/\s+/g, " ").trim();
-  const compact = raw.replace(/\s+/g, "");
+  const spaced = raw
+    .replace(/[-_/]+/g, " ")
+    .replace(/\bFORM\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  let match = spaced.match(/^(ONE|TWO|THREE|FOUR)\s+([A-Z])$/);
+  const compact = spaced.replace(/\s+/g, "");
+
+  let match = spaced.match(
+    /^(ONE|TWO|THREE|FOUR|FIVE|SIX)\s+([A-Z0-9]{1,5})$/
+  );
   if (match) {
+    const formClean = normalizeForm(match[1]);
+
     return {
-      form: normalizeForm(match[1]),
-      stream: normalizeStreamLetter(match[2]),
+      form: formClean,
+      stream: normalizeStream(match[2], formClean),
     };
   }
 
-  match = spaced.match(/^(\d+)\s+([A-Z])$/);
+  match = spaced.match(/^(\d+)\s+([A-Z0-9]{1,5})$/);
   if (match) {
+    const formClean = normalizeForm(match[1]);
+
     return {
-      form: normalizeForm(match[1]),
-      stream: normalizeStreamLetter(match[2]),
+      form: formClean,
+      stream: normalizeStream(match[2], formClean),
     };
   }
 
-  match = compact.match(/^(ONE|TWO|THREE|FOUR)([A-Z])$/);
+  match = compact.match(/^(ONE|TWO|THREE|FOUR|FIVE|SIX)([A-Z0-9]{1,5})$/);
   if (match) {
+    const formClean = normalizeForm(match[1]);
+
     return {
-      form: normalizeForm(match[1]),
-      stream: normalizeStreamLetter(match[2]),
+      form: formClean,
+      stream: normalizeStream(match[2], formClean),
     };
   }
 
-  match = compact.match(/^(\d+)([A-Z])$/);
+  match = compact.match(/^(\d+)([A-Z0-9]{1,5})$/);
   if (match) {
+    const formClean = normalizeForm(match[1]);
+
     return {
-      form: normalizeForm(match[1]),
-      stream: normalizeStreamLetter(match[2]),
+      form: formClean,
+      stream: normalizeStream(match[2], formClean),
     };
   }
+
+  const formClean = normalizeForm(spaced || "ONE");
 
   return {
-    form: normalizeForm(raw || "ONE"),
-    stream: "A",
+    form: formClean,
+    stream: getStreamsForForm(formClean)[0] || "A",
   };
 };
 
 const formatClassLabel = (form, stream) => {
-  return `${normalizeForm(form)} ${normalizeStreamLetter(stream)}`;
+  return `${normalizeForm(form)} ${normalizeStream(stream, form)}`;
 };
 
 const formatClassDisplay = (form, stream) => {
-  return `FORM: ${normalizeForm(form)}  •  STREAM: ${normalizeStreamLetter(
-    stream
+  const cleanForm = normalizeForm(form);
+
+  return `FORM: ${cleanForm}  •  ${getStreamLabel(cleanForm)}: ${normalizeStream(
+    stream,
+    cleanForm
   )}`;
 };
 
@@ -269,7 +298,7 @@ function IdCardPreview({ student }) {
           </div>
 
           <div>
-            <b>STREAM</b>
+            <b>{getStreamLabel(form)}</b>
             <span>:</span>
             <strong>{stream}</strong>
           </div>
@@ -310,7 +339,7 @@ export default function Generator() {
     load("selected_class", null) ||
       {
         form: load("selected_form", FORMS[0]),
-        stream: load("selected_stream_letter", STREAMS[0]),
+        stream: load("selected_stream_letter", getStreamsForForm(FORMS[0])[0]),
       } ||
       "ONE A"
   );
@@ -321,6 +350,8 @@ export default function Generator() {
   const [name, setName] = useState("");
   const [year, setYear] = useState(CURRENT_YEAR);
 
+  const availableStreams = useMemo(() => getStreamsForForm(form), [form]);
+
   const [students, setStudents] = useState(() => {
     const raw = load("students", []);
     if (!Array.isArray(raw)) return [];
@@ -328,7 +359,7 @@ export default function Generator() {
     return raw.map((student, index) => {
       const parts = getStudentClassParts(student);
       const safeForm = normalizeForm(parts.form);
-      const safeStream = normalizeStreamLetter(parts.stream);
+      const safeStream = normalizeStream(parts.stream, safeForm);
       const safeYear = student?.year || student?.session || CURRENT_YEAR;
 
       const oldId =
@@ -357,22 +388,25 @@ export default function Generator() {
   });
 
   useEffect(() => {
+    const allowedStreams = getStreamsForForm(form);
+
+    if (!allowedStreams.includes(stream)) {
+      setStream(allowedStreams[0] || "A");
+    }
+  }, [form, stream]);
+
+  useEffect(() => {
     const cleaned = students.map((student) => {
       const parts = getStudentClassParts(student);
       const safeForm = normalizeForm(parts.form);
-      const safeStream = normalizeStreamLetter(parts.stream);
+      const safeStream = normalizeStream(parts.stream, safeForm);
 
       return {
         id: student?.id ?? uuid(),
         name: sanitizeNameForSave(student?.name),
-
-        // New supported structure
         form: safeForm,
         stream: safeStream,
-
-        // Helpful for old files / display
         className: formatClassLabel(safeForm, safeStream),
-
         year: student?.year || CURRENT_YEAR,
         studentId: student?.studentId,
         photoDataUrl: student?.photoDataUrl ?? "",
@@ -411,7 +445,7 @@ export default function Generator() {
   const addStudent = () => {
     const NAME = sanitizeNameForSave(name);
     const FORM = normalizeForm(form);
-    const STREAM = normalizeStreamLetter(stream);
+    const STREAM = normalizeStream(stream, FORM);
     const YEAR = String(year || CURRENT_YEAR).trim();
 
     if (!NAME) return alert("ENTER FULL NAME");
@@ -422,14 +456,9 @@ export default function Generator() {
       {
         id: uuid(),
         name: NAME,
-
-        // New supported structure
         form: FORM,
         stream: STREAM,
-
-        // Helpful for compatibility/display
         className: formatClassLabel(FORM, STREAM),
-
         year: YEAR,
         studentId: STUDENT_ID,
         photoDataUrl: "",
@@ -469,6 +498,8 @@ export default function Generator() {
   const S = {
     page: {
       minHeight: "100vh",
+      width: "100%",
+      overflowX: "hidden",
       background:
         "linear-gradient(180deg, #f1fbf0 0%, #ffffff 42%, #f8fafc 100%)",
       fontFamily:
@@ -488,6 +519,7 @@ export default function Generator() {
     },
 
     headerInner: {
+      width: "100%",
       maxWidth: 1500,
       margin: "0 auto",
       padding: "16px 26px",
@@ -502,6 +534,7 @@ export default function Generator() {
       display: "flex",
       alignItems: "center",
       gap: 14,
+      minWidth: 0,
     },
 
     logoBox: {
@@ -515,6 +548,7 @@ export default function Generator() {
       overflow: "hidden",
       boxShadow: "0 10px 24px rgba(46, 143, 45, 0.14)",
       padding: 4,
+      flexShrink: 0,
     },
 
     logo: {
@@ -528,12 +562,15 @@ export default function Generator() {
       fontSize: 18,
       fontWeight: 950,
       color: BRAND.black,
+      lineHeight: 1.2,
     },
 
     sub: {
       margin: "5px 0 0",
       fontSize: 12,
       color: BRAND.muted,
+      lineHeight: 1.5,
+      maxWidth: 760,
     },
 
     actions: {
@@ -550,6 +587,7 @@ export default function Generator() {
       cursor: "pointer",
       fontWeight: 950,
       color: BRAND.black,
+      minHeight: 44,
     },
 
     btnPrimary: {
@@ -561,6 +599,7 @@ export default function Generator() {
       fontWeight: 950,
       color: BRAND.white,
       boxShadow: "0 10px 22px rgba(46, 143, 45, 0.22)",
+      minHeight: 44,
     },
 
     btnDanger: {
@@ -571,9 +610,11 @@ export default function Generator() {
       cursor: "pointer",
       fontWeight: 950,
       color: "#9f1239",
+      minHeight: 44,
     },
 
     container: {
+      width: "100%",
       maxWidth: 1500,
       margin: "0 auto",
       padding: "24px 26px 0",
@@ -581,9 +622,10 @@ export default function Generator() {
 
     grid: {
       display: "grid",
-      gridTemplateColumns: "minmax(380px, 520px) 1fr",
+      gridTemplateColumns: "minmax(360px, 520px) minmax(0, 1fr)",
       gap: 22,
       alignItems: "start",
+      width: "100%",
     },
 
     section: {
@@ -592,6 +634,8 @@ export default function Generator() {
       borderRadius: 26,
       padding: 24,
       boxShadow: "0 16px 38px rgba(15, 23, 42, 0.07)",
+      minWidth: 0,
+      width: "100%",
     },
 
     full: {
@@ -603,12 +647,14 @@ export default function Generator() {
       fontSize: 18,
       fontWeight: 950,
       color: BRAND.black,
+      lineHeight: 1.25,
     },
 
     sectionSub: {
       margin: "7px 0 0",
       fontSize: 13,
       color: BRAND.muted,
+      lineHeight: 1.5,
     },
 
     formGrid: {
@@ -620,6 +666,7 @@ export default function Generator() {
 
     fullField: {
       gridColumn: "1 / -1",
+      minWidth: 0,
     },
 
     label: {
@@ -640,6 +687,7 @@ export default function Generator() {
       boxSizing: "border-box",
       background: BRAND.white,
       color: BRAND.black,
+      minHeight: 50,
     },
 
     select: {
@@ -654,6 +702,7 @@ export default function Generator() {
       boxSizing: "border-box",
       background: BRAND.white,
       color: BRAND.black,
+      minHeight: 50,
     },
 
     addBtn: {
@@ -668,6 +717,7 @@ export default function Generator() {
       color: BRAND.white,
       fontSize: 15,
       boxShadow: "0 12px 24px rgba(46, 143, 45, 0.22)",
+      minHeight: 52,
     },
 
     stats: {
@@ -701,6 +751,7 @@ export default function Generator() {
     tableWrap: {
       marginTop: 18,
       overflowX: "auto",
+      width: "100%",
     },
   };
 
@@ -711,8 +762,27 @@ export default function Generator() {
           box-sizing: border-box;
         }
 
+        html,
+        body,
+        #root {
+          width: 100%;
+          min-height: 100%;
+          margin: 0;
+        }
+
         body {
           overflow-x: hidden;
+        }
+
+        button,
+        input,
+        select {
+          font: inherit;
+          max-width: 100%;
+        }
+
+        button {
+          touch-action: manipulation;
         }
 
         .streamBox {
@@ -730,6 +800,7 @@ export default function Generator() {
           color: ${BRAND.black};
           font-family: Arial, Helvetica, sans-serif;
           white-space: nowrap;
+          text-align: center;
         }
 
         .idCardPreview {
@@ -859,11 +930,12 @@ export default function Generator() {
           flex: 1;
           display: grid;
           gap: 12px;
+          min-width: 0;
         }
 
         .idDetails div {
           display: grid;
-          grid-template-columns: 82px 16px 1fr;
+          grid-template-columns: 112px 16px 1fr;
           align-items: center;
           font-size: 14px;
           color: ${BRAND.black};
@@ -1008,11 +1080,181 @@ export default function Generator() {
           font-weight: 950;
           color: #9f1239;
           font-size: 13px;
+          min-height: 42px;
         }
 
-        @media (max-width: 900px) {
+        @media (max-width: 1200px) {
+          .generatorGridFix {
+            grid-template-columns: minmax(320px, 460px) minmax(0, 1fr) !important;
+            gap: 18px !important;
+          }
+
+          .generatorSection {
+            padding: 22px !important;
+          }
+        }
+
+        @media (max-width: 980px) {
           .generatorGridFix {
             grid-template-columns: 1fr !important;
+          }
+
+          .idCardPreview {
+            max-width: 100%;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .generatorHeaderInner {
+            padding: 14px 16px !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+
+          .generatorBrand {
+            width: 100% !important;
+            align-items: flex-start !important;
+          }
+
+          .generatorBrandText {
+            min-width: 0 !important;
+          }
+
+          .generatorTitle {
+            font-size: 16px !important;
+          }
+
+          .generatorSub {
+            font-size: 12px !important;
+          }
+
+          .generatorActions {
+            width: 100% !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 10px !important;
+          }
+
+          .generatorActions button {
+            width: 100% !important;
+            padding: 12px 10px !important;
+          }
+
+          .verifyPdfBtn {
+            grid-column: 1 / -1 !important;
+          }
+
+          .generatorContainer {
+            padding: 18px 14px 0 !important;
+          }
+
+          .generatorSection {
+            padding: 18px !important;
+            border-radius: 22px !important;
+          }
+
+          .generatorFormGrid {
+            grid-template-columns: 1fr !important;
+            gap: 14px !important;
+          }
+
+          .mobileFullField {
+            grid-column: 1 / -1 !important;
+          }
+
+          .statsBox {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+
+          .classChips {
+            width: 100% !important;
+          }
+
+          .classChips span {
+            max-width: 100% !important;
+          }
+
+          .tableWrapResponsive {
+            overflow-x: visible !important;
+          }
+
+          .studentsTable {
+            min-width: 0 !important;
+            width: 100% !important;
+            border-spacing: 0 12px !important;
+          }
+
+          .studentsTable thead {
+            display: none !important;
+          }
+
+          .studentsTable,
+          .studentsTable tbody,
+          .studentsTable tr,
+          .studentsTable td {
+            display: block !important;
+            width: 100% !important;
+          }
+
+          .studentsTable tr {
+            border: 1px solid ${BRAND.border};
+            border-radius: 18px;
+            overflow: hidden;
+            background: ${BRAND.white};
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+            margin-bottom: 12px;
+          }
+
+          .studentsTable td {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            gap: 12px !important;
+            white-space: normal !important;
+            padding: 13px 14px !important;
+            border-bottom: 1px solid #eef2f7 !important;
+            text-align: right !important;
+          }
+
+          .studentsTable td::before {
+            content: attr(data-label);
+            flex: 0 0 120px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 950;
+            color: ${BRAND.muted};
+          }
+
+          .studentsTable td:last-child {
+            border-bottom: none !important;
+          }
+
+          .studentsTable tbody tr:nth-child(even) td {
+            background: ${BRAND.white};
+          }
+
+          .studentsTable tbody tr:hover td {
+            background: ${BRAND.white};
+          }
+
+          .studentsTable td .streamBox {
+            min-width: 0;
+            width: auto;
+            max-width: calc(100% - 130px);
+            white-space: normal;
+            font-size: 12px;
+            padding: 10px 12px;
+          }
+
+          .emptyRowCell {
+            display: block !important;
+            text-align: center !important;
+          }
+
+          .emptyRowCell::before {
+            display: none !important;
+            content: "" !important;
           }
         }
 
@@ -1026,7 +1268,7 @@ export default function Generator() {
           }
 
           .idDetails div {
-            grid-template-columns: 70px 12px 1fr;
+            grid-template-columns: 96px 12px 1fr;
             font-size: 11px;
           }
 
@@ -1053,26 +1295,187 @@ export default function Generator() {
             min-height: 245px;
           }
         }
+
+        @media (max-width: 480px) {
+          .generatorHeaderInner {
+            padding: 12px 12px !important;
+          }
+
+          .generatorLogoBox {
+            width: 46px !important;
+            height: 46px !important;
+            border-radius: 15px !important;
+          }
+
+          .generatorTitle {
+            font-size: 14px !important;
+            line-height: 1.25 !important;
+          }
+
+          .generatorSub {
+            display: none !important;
+          }
+
+          .generatorActions {
+            grid-template-columns: 1fr !important;
+          }
+
+          .generatorContainer {
+            padding: 14px 10px 0 !important;
+          }
+
+          .generatorSection {
+            padding: 15px !important;
+            border-radius: 18px !important;
+          }
+
+          .sectionTitleMobile {
+            font-size: 16px !important;
+          }
+
+          .sectionSubMobile {
+            font-size: 12px !important;
+          }
+
+          .idHeader {
+            min-height: 66px;
+            padding: 12px 14px;
+            gap: 10px;
+          }
+
+          .idHeader::after {
+            left: 14px;
+            width: 56%;
+          }
+
+          .headerLogoCircle {
+            width: 44px;
+            height: 44px;
+            border-radius: 13px;
+          }
+
+          .schoolName {
+            font-size: 14px;
+            letter-spacing: .4px;
+          }
+
+          .schoolMotto {
+            margin-top: 5px;
+            font-size: 6px;
+            letter-spacing: 1.2px;
+          }
+
+          .idBody {
+            padding: 18px 16px 10px;
+            gap: 12px;
+          }
+
+          .idDetails {
+            gap: 9px;
+          }
+
+          .idDetails div {
+            grid-template-columns: 90px 10px 1fr;
+            font-size: 10.5px;
+          }
+
+          .photoBox {
+            width: 68px;
+            height: 68px;
+            border-radius: 15px;
+            padding: 8px;
+          }
+
+          .nameBand {
+            margin: 12px 16px 0;
+            min-height: 42px;
+            border-radius: 14px;
+            padding: 9px 34px;
+          }
+
+          .nameBand::before,
+          .nameBand::after {
+            width: 18px;
+            height: 3px;
+          }
+
+          .nameBand::before {
+            left: 11px;
+          }
+
+          .nameBand::after {
+            right: 11px;
+          }
+
+          .nameBand span {
+            font-size: 12px;
+            letter-spacing: .7px;
+          }
+
+          .watermarkLogo {
+            width: 170px;
+            height: 170px;
+          }
+
+          .dangerBtn {
+            width: 100%;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .generatorBrand {
+            gap: 10px !important;
+          }
+
+          .generatorTitle {
+            font-size: 13px !important;
+          }
+
+          .idBody {
+            align-items: flex-start;
+          }
+
+          .photoBox {
+            width: 60px;
+            height: 60px;
+          }
+
+          .idDetails div {
+            grid-template-columns: 82px 8px 1fr;
+            font-size: 10px;
+          }
+
+          .streamBox {
+            min-width: 0;
+            width: 100%;
+            white-space: normal;
+          }
+        }
       `}</style>
 
       <header style={S.header}>
-        <div style={S.headerInner}>
-          <div style={S.brand}>
-            <div style={S.logoBox}>
+        <div className="generatorHeaderInner" style={S.headerInner}>
+          <div className="generatorBrand" style={S.brand}>
+            <div className="generatorLogoBox" style={S.logoBox}>
               <img src={SHAMSIYE_LOGO} alt="Shamsiye Logo" style={S.logo} />
             </div>
 
-            <div>
-              <h2 style={S.title}>SHAMSIYE • PROFESSIONAL TAG GENERATOR</h2>
-              <p style={S.sub}>
-                Create premium student tags with separated form and stream,
-                soft green branding, and clean printable design.
+            <div className="generatorBrandText">
+              <h2 className="generatorTitle" style={S.title}>
+                SHAMSIYE • LOCKER TAG GENERATOR
+              </h2>
+              <p className="generatorSub" style={S.sub}>
+                
               </p>
             </div>
           </div>
 
-          <div style={S.actions}>
-            <button style={S.btnPrimary} onClick={() => navigate("/verify")}>
+          <div className="generatorActions" style={S.actions}>
+            <button
+              className="verifyPdfBtn"
+              style={S.btnPrimary}
+              onClick={() => navigate("/verify")}
+            >
               Verify & Download PDF
             </button>
 
@@ -1093,17 +1496,19 @@ export default function Generator() {
         </div>
       </header>
 
-      <main style={S.container}>
+      <main className="generatorContainer" style={S.container}>
         <div className="generatorGridFix" style={S.grid}>
-          <section style={S.section}>
-            <h3 style={S.sectionTitle}>Add Student Tag</h3>
-            <p style={S.sectionSub}>
+          <section className="generatorSection" style={S.section}>
+            <h3 className="sectionTitleMobile" style={S.sectionTitle}>
+              Add Student Tag
+            </h3>
+            <p className="sectionSubMobile" style={S.sectionSub}>
               Enter student name, form, and stream. The saved structure is now
               form and stream separately.
             </p>
 
-            <div style={S.formGrid}>
-              <div style={S.fullField}>
+            <div className="generatorFormGrid" style={S.formGrid}>
+              <div className="mobileFullField" style={S.fullField}>
                 <div style={S.label}>FULL NAME</div>
                 <input
                   value={name}
@@ -1115,11 +1520,15 @@ export default function Generator() {
                 />
               </div>
 
-              <div>
+              <div className="mobileFullField">
                 <div style={S.label}>FORM</div>
                 <select
                   value={form}
-                  onChange={(e) => setForm(normalizeForm(e.target.value))}
+                  onChange={(e) => {
+                    const selectedForm = normalizeForm(e.target.value);
+                    setForm(selectedForm);
+                    setStream(getStreamsForForm(selectedForm)[0] || "A");
+                  }}
                   style={S.select}
                 >
                   {FORMS.map((item) => (
@@ -1130,16 +1539,16 @@ export default function Generator() {
                 </select>
               </div>
 
-              <div>
-                <div style={S.label}>STREAM</div>
+              <div className="mobileFullField">
+                <div style={S.label}>{getStreamLabel(form)}</div>
                 <select
                   value={stream}
                   onChange={(e) =>
-                    setStream(normalizeStreamLetter(e.target.value))
+                    setStream(normalizeStream(e.target.value, form))
                   }
                   style={S.select}
                 >
-                  {STREAMS.map((item) => (
+                  {availableStreams.map((item) => (
                     <option key={item} value={item}>
                       {item}
                     </option>
@@ -1147,7 +1556,7 @@ export default function Generator() {
                 </select>
               </div>
 
-              <div style={S.fullField}>
+              <div className="mobileFullField" style={S.fullField}>
                 <div style={S.label}>YEAR</div>
                 <input
                   value={year}
@@ -1159,15 +1568,15 @@ export default function Generator() {
             </div>
 
             <button style={S.addBtn} onClick={addStudent}>
-              ✨ Add Student Tag
+              Add Student Tag
             </button>
 
-            <div style={S.stats}>
+            <div className="statsBox" style={S.stats}>
               <span>
                 Total Students: <b>{stats.total}</b>
               </span>
 
-              <div style={S.chips}>
+              <div className="classChips" style={S.chips}>
                 {[...stats.byClass.entries()]
                   .slice(0, 6)
                   .map(([klass, number]) => {
@@ -1184,14 +1593,16 @@ export default function Generator() {
             </div>
           </section>
 
-          <section style={S.section}>
-            <h3 style={S.sectionTitle}>Live Tag Preview</h3>
-            <p style={S.sectionSub}>
+          <section className="generatorSection" style={S.section}>
+            <h3 className="sectionTitleMobile" style={S.sectionTitle}>
+              Live Tag Preview
+            </h3>
+            <p className="sectionSubMobile" style={S.sectionSub}>
               No ID number, no top student ID badge, separated form and stream,
               rounded logo container, and padded name tag.
             </p>
 
-            <div style={{ marginTop: 20 }}>
+            <div style={{ marginTop: 20, width: "100%" }}>
               <IdCardPreview student={previewStudent} />
             </div>
 
@@ -1201,20 +1612,25 @@ export default function Generator() {
             </div>
           </section>
 
-          <section style={{ ...S.section, ...S.full }}>
-            <h3 style={S.sectionTitle}>Student List</h3>
+          <section
+            className="generatorSection"
+            style={{ ...S.section, ...S.full }}
+          >
+            <h3 className="sectionTitleMobile" style={S.sectionTitle}>
+              Student List
+            </h3>
             <p style={S.sectionSub}>
-              These students will be exported in the PDF using separate form and
-              stream values.
+              These students will be exported in the PDF using separate form,
+              stream or combination, and year values.
             </p>
 
-            <div style={S.tableWrap}>
+            <div className="tableWrapResponsive" style={S.tableWrap}>
               <table className="studentsTable">
                 <thead>
                   <tr>
                     <th>FULL NAME</th>
                     <th>FORM</th>
-                    <th>STREAM</th>
+                    <th>STREAM / COMBINATION</th>
                     <th>YEAR</th>
                     <th>ACTION</th>
                   </tr>
@@ -1226,19 +1642,26 @@ export default function Generator() {
 
                     return (
                       <tr key={student.id}>
-                        <td style={{ fontWeight: 950 }}>
+                        <td data-label="FULL NAME" style={{ fontWeight: 950 }}>
                           {sanitizeNameForSave(student.name)}
                         </td>
 
-                        <td>
+                        <td data-label="FORM">
                           <StreamBox form={parts.form} stream={parts.stream} />
                         </td>
 
-                        <td style={{ fontWeight: 950 }}>{parts.stream}</td>
+                        <td
+                          data-label={getStreamLabel(parts.form)}
+                          style={{ fontWeight: 950 }}
+                        >
+                          {parts.stream}
+                        </td>
 
-                        <td>{student.year || CURRENT_YEAR}</td>
+                        <td data-label="YEAR">
+                          {student.year || CURRENT_YEAR}
+                        </td>
 
-                        <td>
+                        <td data-label="ACTION">
                           <button
                             className="dangerBtn"
                             onClick={() => removeStudent(student.id)}
@@ -1253,6 +1676,7 @@ export default function Generator() {
                   {students.length === 0 && (
                     <tr>
                       <td
+                        className="emptyRowCell"
                         colSpan="5"
                         style={{
                           padding: 20,

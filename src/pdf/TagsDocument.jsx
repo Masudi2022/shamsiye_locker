@@ -17,18 +17,15 @@ import {
  * No Authorized Signature
  * No Official Tag
  * Bottom contains only student name
- * FORM and STREAM separated
+ * FORM and STREAM/COMBINATION separated
  * Real logo restored using logoDataUrl from Verify.jsx
  * Header: left logo + centered school name + right logo
  *
  * Supports:
- * - { form: "ONE", stream: "B" }
- * - { form: "one", stream: "b" }
- * - { form: "1", stream: "A" }
- * - { stream: "ONE B" }
- * - { form: "ONE B" }
- * - { className: "ONE B" }
+ * - Form ONE, TWO, THREE, FOUR with streams A, B, C
+ * - Form FIVE and SIX with combinations HGE, EGM, PCM, PCB, CBG
  * - old values like "1A", "1 A", "ONEB", "ONE B"
+ * - new values like "6PCM", "6 PCM", "SIXPCM", "SIX PCM"
  */
 
 const A4_W = 595.28;
@@ -62,6 +59,15 @@ const BRAND = {
   white: "#FFFFFF",
 };
 
+const FORM_STREAM_OPTIONS = {
+  ONE: ["A", "B", "C"],
+  TWO: ["A", "B", "C"],
+  THREE: ["A", "B", "C"],
+  FOUR: ["A", "B", "C"],
+  FIVE: ["HGE", "EGM", "PCM", "PCB", "CBG"],
+  SIX: ["HGE", "EGM", "PCM", "PCB", "CBG"],
+};
+
 const FORM_ALIASES = {
   "1": "ONE",
   "01": "ONE",
@@ -86,6 +92,18 @@ const FORM_ALIASES = {
   FOUR: "FOUR",
   FORMFOUR: "FOUR",
   FORM4: "FOUR",
+
+  "5": "FIVE",
+  "05": "FIVE",
+  FIVE: "FIVE",
+  FORMFIVE: "FIVE",
+  FORM5: "FIVE",
+
+  "6": "SIX",
+  "06": "SIX",
+  SIX: "SIX",
+  FORMSIX: "SIX",
+  FORM6: "SIX",
 };
 
 const U = (value) => {
@@ -98,20 +116,43 @@ const normalizeForm = (value) => {
   return FORM_ALIASES[clean] || U(value) || "ONE";
 };
 
-const normalizeStreamLetter = (value) => {
-  const clean = U(value).replace(/[^A-Z]/g, "");
-  return clean.charAt(0) || "A";
+const isAdvancedForm = (form) => {
+  const cleanForm = normalizeForm(form);
+  return cleanForm === "FIVE" || cleanForm === "SIX";
+};
+
+const getStreamLabel = (form) => {
+  return isAdvancedForm(form) ? "COMBINATION" : "STREAM";
+};
+
+const getStreamsForForm = (form) => {
+  const cleanForm = normalizeForm(form);
+  return FORM_STREAM_OPTIONS[cleanForm] || ["A", "B", "C"];
+};
+
+const normalizeStream = (value, form = "ONE") => {
+  const clean = U(value).replace(/[^A-Z0-9]/g, "");
+  const availableStreams = getStreamsForForm(form);
+
+  if (!clean) return availableStreams[0] || "A";
+
+  return clean;
 };
 
 const formatClassLabel = (form, stream) => {
-  return `${normalizeForm(form)} ${normalizeStreamLetter(stream)}`;
+  const safeForm = normalizeForm(form);
+  const safeStream = normalizeStream(stream, safeForm);
+
+  return `${safeForm} ${safeStream}`;
 };
 
 const parseFormAndStream = (input, maybeStream) => {
   if (maybeStream) {
+    const formClean = normalizeForm(input);
+
     return {
-      form: normalizeForm(input),
-      stream: normalizeStreamLetter(maybeStream),
+      form: formClean,
+      stream: normalizeStream(maybeStream, formClean),
     };
   }
 
@@ -140,20 +181,23 @@ const parseFormAndStream = (input, maybeStream) => {
       input.classLabel;
 
     if (objectForm && objectStream) {
+      const formClean = normalizeForm(objectForm);
       const streamString = U(objectStream);
       const streamCompact = streamString.replace(/\s+/g, "");
 
       const streamLooksCombined =
         streamString.includes(" ") ||
-        /^\d+[A-Z]$/.test(streamCompact) ||
-        /^(ONE|TWO|THREE|FOUR)[A-Z]$/.test(streamCompact);
+        /^\d+[A-Z0-9]{1,5}$/.test(streamCompact) ||
+        /^(ONE|TWO|THREE|FOUR|FIVE|SIX)[A-Z0-9]{1,5}$/.test(streamCompact);
 
-      if (!streamLooksCombined && streamString.length <= 2) {
-        return {
-          form: normalizeForm(objectForm),
-          stream: normalizeStreamLetter(objectStream),
-        };
+      if (streamLooksCombined) {
+        return parseFormAndStream(objectStream);
       }
+
+      return {
+        form: formClean,
+        stream: normalizeStream(objectStream, formClean),
+      };
     }
 
     if (objectClass) return parseFormAndStream(objectClass);
@@ -162,44 +206,66 @@ const parseFormAndStream = (input, maybeStream) => {
   }
 
   const raw = U(input);
-  const spaced = raw.replace(/[-_/]+/g, " ").replace(/\s+/g, " ").trim();
-  const compact = raw.replace(/\s+/g, "");
 
-  let match = spaced.match(/^(ONE|TWO|THREE|FOUR)\s+([A-Z])$/);
+  const spaced = raw
+    .replace(/[-_/]+/g, " ")
+    .replace(/\bFORM\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const compact = spaced.replace(/\s+/g, "");
+
+  let match = spaced.match(
+    /^(ONE|TWO|THREE|FOUR|FIVE|SIX)\s+([A-Z0-9]{1,5})$/
+  );
+
   if (match) {
+    const formClean = normalizeForm(match[1]);
+
     return {
-      form: normalizeForm(match[1]),
-      stream: normalizeStreamLetter(match[2]),
+      form: formClean,
+      stream: normalizeStream(match[2], formClean),
     };
   }
 
-  match = spaced.match(/^(\d+)\s+([A-Z])$/);
+  match = spaced.match(/^(\d+)\s+([A-Z0-9]{1,5})$/);
+
   if (match) {
+    const formClean = normalizeForm(match[1]);
+
     return {
-      form: normalizeForm(match[1]),
-      stream: normalizeStreamLetter(match[2]),
+      form: formClean,
+      stream: normalizeStream(match[2], formClean),
     };
   }
 
-  match = compact.match(/^(ONE|TWO|THREE|FOUR)([A-Z])$/);
+  match = compact.match(/^(ONE|TWO|THREE|FOUR|FIVE|SIX)([A-Z0-9]{1,5})$/);
+
   if (match) {
+    const formClean = normalizeForm(match[1]);
+
     return {
-      form: normalizeForm(match[1]),
-      stream: normalizeStreamLetter(match[2]),
+      form: formClean,
+      stream: normalizeStream(match[2], formClean),
     };
   }
 
-  match = compact.match(/^(\d+)([A-Z])$/);
+  match = compact.match(/^(\d+)([A-Z0-9]{1,5})$/);
+
   if (match) {
+    const formClean = normalizeForm(match[1]);
+
     return {
-      form: normalizeForm(match[1]),
-      stream: normalizeStreamLetter(match[2]),
+      form: formClean,
+      stream: normalizeStream(match[2], formClean),
     };
   }
+
+  const formClean = normalizeForm(spaced || "ONE");
 
   return {
-    form: normalizeForm(raw || "ONE"),
-    stream: "A",
+    form: formClean,
+    stream: getStreamsForForm(formClean)[0] || "A",
   };
 };
 
@@ -215,14 +281,17 @@ const prepareStudents = (students) => {
   return students.map((student) => {
     const parts = getStudentClassParts(student);
     const safeForm = normalizeForm(parts.form);
-    const safeStream = normalizeStreamLetter(parts.stream);
+    const safeStream = normalizeStream(parts.stream, safeForm);
+    const safeClassLabel = formatClassLabel(safeForm, safeStream);
 
     return {
       ...student,
       name: U(student?.name || "STUDENT NAME"),
       form: safeForm,
       stream: safeStream,
-      className: formatClassLabel(safeForm, safeStream),
+      streamLabel: getStreamLabel(safeForm),
+      className: safeClassLabel,
+      formStream: safeClassLabel,
       year: getYear(student),
     };
   });
@@ -460,8 +529,8 @@ const styles = StyleSheet.create({
   },
 
   detailLabel: {
-    width: 43,
-    fontSize: 6.4,
+    width: 58,
+    fontSize: 5.6,
     color: BRAND.black,
     fontWeight: "bold",
   },
@@ -659,7 +728,11 @@ function SafeLogo({ src, style, fallbackStyle }) {
 
 function StudentTag({ student, logoDataUrl }) {
   const { form, stream } = getStudentClassParts(student);
+
+  const safeForm = normalizeForm(form);
+  const safeStream = normalizeStream(stream, safeForm);
   const year = getYear(student);
+  const streamLabel = getStreamLabel(safeForm);
 
   return (
     <View style={styles.card}>
@@ -727,13 +800,13 @@ function StudentTag({ student, logoDataUrl }) {
             </Text>
 
             <Text style={styles.detailValue} wrap={false}>
-              {normalizeForm(form)}
+              {safeForm}
             </Text>
           </View>
 
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel} wrap={false}>
-              STREAM
+              {streamLabel}
             </Text>
 
             <Text style={styles.detailColon} wrap={false}>
@@ -741,7 +814,7 @@ function StudentTag({ student, logoDataUrl }) {
             </Text>
 
             <Text style={styles.detailValue} wrap={false}>
-              {normalizeStreamLetter(stream)}
+              {safeStream}
             </Text>
           </View>
 
@@ -781,7 +854,7 @@ function StudentTag({ student, logoDataUrl }) {
           <View style={styles.nameBlueLeft} />
 
           <Text style={styles.nameText} wrap={false}>
-            {U(student?.name)}
+            {U(student?.name || "STUDENT NAME")}
           </Text>
 
           <View style={styles.nameBlueRight} />
