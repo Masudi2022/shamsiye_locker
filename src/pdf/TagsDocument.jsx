@@ -1,148 +1,234 @@
 import React from "react";
-import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer";
-import SHAMSIYE_LOGO from "../assets/images/shamsiye.png";
+import {
+  Document,
+  Page,
+  View,
+  Text,
+  Image,
+  StyleSheet,
+} from "@react-pdf/renderer";
 
-const BORDER = 2;
-const INCH = 72;
+/**
+ * SHAMSIYE PROFESSIONAL TAG PDF
+ * A4 portrait
+ * 2 columns × 5 rows = 10 tags per page
+ * No ID number
+ * No STUDENT ID badge
+ * No Authorized Signature
+ * No Official Tag
+ * Bottom contains only student name
+ * FORM and STREAM separated
+ * Real logo restored using logoDataUrl from Verify.jsx
+ * Header: left logo + centered school name + right logo
+ *
+ * Supports:
+ * - { form: "ONE", stream: "B" }
+ * - { form: "one", stream: "b" }
+ * - { form: "1", stream: "A" }
+ * - { stream: "ONE B" }
+ * - { form: "ONE B" }
+ * - { className: "ONE B" }
+ * - old values like "1A", "1 A", "ONEB", "ONE B"
+ */
 
-const TAG_W = 2.4 * INCH;
-const TAG_H = 1.35 * INCH;
+const A4_W = 595.28;
+const A4_H = 841.89;
 
-const PICTURE_W = 0.95 * INCH;
-const TOP_H = 0.88 * INCH;
-const NAME_H = TAG_H - TOP_H;
+const PAGE_PADDING_X = 20;
+const PAGE_PADDING_Y = 18;
+const COL_GAP = 15;
+const ROW_GAP = 10;
 
-const LOGO_SIZE = 0.72 * INCH;
+const COLUMNS = 2;
+const ROWS = 5;
+const PER_PAGE = COLUMNS * ROWS;
 
-const U = (v) => (v == null ? "" : String(v).toUpperCase());
+const CARD_W = (A4_W - PAGE_PADDING_X * 2 - COL_GAP) / COLUMNS;
+const CARD_H = (A4_H - PAGE_PADDING_Y * 2 - ROW_GAP * (ROWS - 1)) / ROWS;
 
-const formatStreamLabel = (stream) => {
-  if (!stream) return "";
-  const s = String(stream).replace(/\s+/g, "");
-  return s.replace(/^([A-Za-z])(\d.*)$/, "$1 $2").toUpperCase();
+const CURRENT_YEAR = "2026";
+
+const BRAND = {
+  greenDark: "#2E8F2D",
+  greenDeep: "#1F6F22",
+  greenSoft: "#F1FBF0",
+  greenVerySoft: "#F8FFF7",
+  blue: "#16B8CF",
+  blueSoft: "#E8FAFD",
+  black: "#111827",
+  muted: "#64748B",
+  border: "#DCE7EA",
+  borderSoft: "#EEF6F0",
+  white: "#FFFFFF",
 };
 
-const getStudentStream = (s) => s?.stream ?? s?.form ?? "";
+const FORM_ALIASES = {
+  "1": "ONE",
+  "01": "ONE",
+  ONE: "ONE",
+  FORMONE: "ONE",
+  FORM1: "ONE",
 
-const styles = StyleSheet.create({
-  page: {
-    paddingTop: 10,
-    paddingBottom: 10,
-    paddingLeft: 9,
-    paddingRight: 9,
-    fontFamily: "Helvetica",
-    backgroundColor: "#ffffff",
-  },
+  "2": "TWO",
+  "02": "TWO",
+  TWO: "TWO",
+  FORMTWO: "TWO",
+  FORM2: "TWO",
 
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
+  "3": "THREE",
+  "03": "THREE",
+  THREE: "THREE",
+  FORMTHREE: "THREE",
+  FORM3: "THREE",
 
-  cell: {
-    width: "33.3333%",
-    padding: 3.5,
-    alignItems: "center",
-  },
+  "4": "FOUR",
+  "04": "FOUR",
+  FOUR: "FOUR",
+  FORMFOUR: "FOUR",
+  FORM4: "FOUR",
+};
 
-  tag: {
-    width: TAG_W,
-    height: TAG_H,
-    borderWidth: BORDER,
-    borderColor: "#000000",
-    backgroundColor: "#ffffff",
-    flexDirection: "column",
-  },
+const U = (value) => {
+  if (value == null) return "";
+  return String(value).toUpperCase().trim();
+};
 
-  firstRow: {
-    height: TOP_H,
-    flexDirection: "row",
-    borderBottomWidth: BORDER,
-    borderBottomColor: "#000000",
-  },
+const normalizeForm = (value) => {
+  const clean = U(value).replace(/\s+/g, "");
+  return FORM_ALIASES[clean] || U(value) || "ONE";
+};
 
-  pictureColumn: {
-    width: PICTURE_W,
-    borderRightWidth: BORDER,
-    borderRightColor: "#000000",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 4,
-  },
+const normalizeStreamLetter = (value) => {
+  const clean = U(value).replace(/[^A-Z]/g, "");
+  return clean.charAt(0) || "A";
+};
 
-  pictureBox: {
-    width: LOGO_SIZE,
-    height: LOGO_SIZE,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+const formatClassLabel = (form, stream) => {
+  return `${normalizeForm(form)} ${normalizeStreamLetter(stream)}`;
+};
 
-  picture: {
-    width: LOGO_SIZE,
-    height: LOGO_SIZE,
-    objectFit: "contain",
-  },
+const parseFormAndStream = (input, maybeStream) => {
+  if (maybeStream) {
+    return {
+      form: normalizeForm(input),
+      stream: normalizeStreamLetter(maybeStream),
+    };
+  }
 
-  formColumn: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
+  if (typeof input === "object" && input !== null) {
+    const objectForm =
+      input.originalForm ||
+      input.formValue ||
+      input.form_number ||
+      input.formNumber ||
+      input.form;
 
-  formText: {
-    fontSize: 30,
-    fontWeight: "bold",
-    letterSpacing: 1.5,
-    textAlign: "center",
-    lineHeight: 1,
-  },
+    const objectStream =
+      input.originalStream ||
+      input.streamValue ||
+      input.stream_letter ||
+      input.streamLetter ||
+      input.stream;
 
-  secondRow: {
-    height: NAME_H,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 5,
-    paddingVertical: 3,
-  },
+    const objectClass =
+      input.className ||
+      input.classCode ||
+      input.class ||
+      input.selectedClass ||
+      input.formStream ||
+      input.class_label ||
+      input.classLabel;
 
-  nameText: {
-    fontSize: 9.5,
-    fontWeight: "bold",
-    textAlign: "center",
-    lineHeight: 1.15,
-  },
-});
+    if (objectForm && objectStream) {
+      const streamString = U(objectStream);
+      const streamCompact = streamString.replace(/\s+/g, "");
 
-function TagPDF({ student, logoDataUrl }) {
-  const formLabel = formatStreamLabel(getStudentStream(student));
+      const streamLooksCombined =
+        streamString.includes(" ") ||
+        /^\d+[A-Z]$/.test(streamCompact) ||
+        /^(ONE|TWO|THREE|FOUR)[A-Z]$/.test(streamCompact);
 
-  const logoSrc = logoDataUrl || SHAMSIYE_LOGO;
+      if (!streamLooksCombined && streamString.length <= 2) {
+        return {
+          form: normalizeForm(objectForm),
+          stream: normalizeStreamLetter(objectStream),
+        };
+      }
+    }
 
-  return (
-    <View style={styles.tag}>
-      <View style={styles.firstRow}>
-        <View style={styles.pictureColumn}>
-          <View style={styles.pictureBox}>
-            <Image style={styles.picture} src={logoSrc} />
-          </View>
-        </View>
+    if (objectClass) return parseFormAndStream(objectClass);
+    if (objectStream) return parseFormAndStream(objectStream);
+    if (objectForm) return parseFormAndStream(objectForm);
+  }
 
-        <View style={styles.formColumn}>
-          <Text style={styles.formText} wrap={false}>
-            {formLabel}
-          </Text>
-        </View>
-      </View>
+  const raw = U(input);
+  const spaced = raw.replace(/[-_/]+/g, " ").replace(/\s+/g, " ").trim();
+  const compact = raw.replace(/\s+/g, "");
 
-      <View style={styles.secondRow}>
-        <Text style={styles.nameText}>{U(student?.name)}</Text>
-      </View>
-    </View>
-  );
-}
+  let match = spaced.match(/^(ONE|TWO|THREE|FOUR)\s+([A-Z])$/);
+  if (match) {
+    return {
+      form: normalizeForm(match[1]),
+      stream: normalizeStreamLetter(match[2]),
+    };
+  }
 
-function chunk(arr, size) {
+  match = spaced.match(/^(\d+)\s+([A-Z])$/);
+  if (match) {
+    return {
+      form: normalizeForm(match[1]),
+      stream: normalizeStreamLetter(match[2]),
+    };
+  }
+
+  match = compact.match(/^(ONE|TWO|THREE|FOUR)([A-Z])$/);
+  if (match) {
+    return {
+      form: normalizeForm(match[1]),
+      stream: normalizeStreamLetter(match[2]),
+    };
+  }
+
+  match = compact.match(/^(\d+)([A-Z])$/);
+  if (match) {
+    return {
+      form: normalizeForm(match[1]),
+      stream: normalizeStreamLetter(match[2]),
+    };
+  }
+
+  return {
+    form: normalizeForm(raw || "ONE"),
+    stream: "A",
+  };
+};
+
+const getStudentClassParts = (student) => {
+  return parseFormAndStream(student);
+};
+
+const getYear = (student) => {
+  return student?.year || student?.session || CURRENT_YEAR;
+};
+
+const prepareStudents = (students) => {
+  return students.map((student) => {
+    const parts = getStudentClassParts(student);
+    const safeForm = normalizeForm(parts.form);
+    const safeStream = normalizeStreamLetter(parts.stream);
+
+    return {
+      ...student,
+      name: U(student?.name || "STUDENT NAME"),
+      form: safeForm,
+      stream: safeStream,
+      className: formatClassLabel(safeForm, safeStream),
+      year: getYear(student),
+    };
+  });
+};
+
+const chunk = (arr, size) => {
   const out = [];
 
   for (let i = 0; i < arr.length; i += size) {
@@ -150,27 +236,598 @@ function chunk(arr, size) {
   }
 
   return out;
+};
+
+const isValidImageSrc = (src) => {
+  return (
+    typeof src === "string" &&
+    src.length > 0 &&
+    src.startsWith("data:image/")
+  );
+};
+
+const getCellStyle = (index, totalOnPage) => {
+  const isRightColumn = index % COLUMNS === 1;
+  const currentRow = Math.floor(index / COLUMNS);
+  const lastRow = Math.floor((totalOnPage - 1) / COLUMNS);
+
+  return {
+    width: CARD_W,
+    height: CARD_H,
+    marginRight: isRightColumn ? 0 : COL_GAP,
+    marginBottom: currentRow === lastRow ? 0 : ROW_GAP,
+  };
+};
+
+const styles = StyleSheet.create({
+  page: {
+    paddingTop: PAGE_PADDING_Y,
+    paddingBottom: PAGE_PADDING_Y,
+    paddingLeft: PAGE_PADDING_X,
+    paddingRight: PAGE_PADDING_X,
+    backgroundColor: BRAND.white,
+    fontFamily: "Helvetica",
+  },
+
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+
+  card: {
+    width: CARD_W,
+    height: CARD_H,
+    backgroundColor: BRAND.white,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    position: "relative",
+    overflow: "hidden",
+  },
+
+  innerBorder: {
+    position: "absolute",
+    left: 5,
+    top: 8,
+    width: CARD_W - 10,
+    height: CARD_H - 14,
+    borderWidth: 0.7,
+    borderColor: BRAND.borderSoft,
+    borderRadius: 9,
+  },
+
+  softGreenCircle: {
+    position: "absolute",
+    right: -25,
+    top: 18,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: BRAND.greenSoft,
+    opacity: 0.8,
+  },
+
+  softBlueCircle: {
+    position: "absolute",
+    left: -26,
+    bottom: 15,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: BRAND.blueSoft,
+    opacity: 0.75,
+  },
+
+  sideAccent: {
+    position: "absolute",
+    left: 0,
+    top: 5,
+    width: 3,
+    height: CARD_H - 9,
+    backgroundColor: BRAND.greenDark,
+  },
+
+  watermarkWrap: {
+    position: "absolute",
+    left: 68,
+    top: 22,
+    width: 135,
+    height: 135,
+    opacity: 0.085,
+  },
+
+  watermarkImage: {
+    width: 135,
+    height: 135,
+  },
+
+  topStrip: {
+    height: 5,
+    width: CARD_W,
+    backgroundColor: BRAND.greenDark,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+
+  blueStrip: {
+    width: 50,
+    height: 5,
+    backgroundColor: BRAND.blue,
+  },
+
+  header: {
+    height: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 10,
+    paddingRight: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: BRAND.border,
+    backgroundColor: BRAND.white,
+    position: "relative",
+  },
+
+  headerLogoSlot: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  logoBox: {
+    width: 29,
+    height: 29,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    backgroundColor: BRAND.white,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 2.5,
+  },
+
+  logo: {
+    width: 24,
+    height: 24,
+  },
+
+  headerText: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingLeft: 4,
+    paddingRight: 4,
+  },
+
+  schoolName: {
+    color: BRAND.black,
+    fontSize: 11,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+
+  motto: {
+    marginTop: 3,
+    color: BRAND.greenDark,
+    fontSize: 4.8,
+    fontWeight: "bold",
+    letterSpacing: 0.7,
+    textAlign: "center",
+  },
+
+  headerGreenLine: {
+    position: "absolute",
+    left: (CARD_W - 126) / 2,
+    bottom: 0,
+    width: 94,
+    height: 2,
+    backgroundColor: BRAND.greenDark,
+  },
+
+  headerBlueLine: {
+    position: "absolute",
+    left: (CARD_W - 126) / 2 + 94,
+    bottom: 0,
+    width: 31,
+    height: 2,
+    backgroundColor: BRAND.blue,
+  },
+
+  body: {
+    height: 56,
+    flexDirection: "row",
+    paddingTop: 6,
+    paddingLeft: 14,
+    paddingRight: 14,
+  },
+
+  details: {
+    flex: 1,
+    paddingRight: 8,
+    justifyContent: "center",
+  },
+
+  detailRow: {
+    height: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 3,
+    paddingLeft: 5,
+    paddingRight: 5,
+    borderRadius: 5,
+    borderWidth: 0.5,
+    borderColor: BRAND.borderSoft,
+    backgroundColor: BRAND.white,
+  },
+
+  detailLabel: {
+    width: 43,
+    fontSize: 6.4,
+    color: BRAND.black,
+    fontWeight: "bold",
+  },
+
+  detailColon: {
+    width: 6,
+    fontSize: 6.4,
+    color: BRAND.greenDark,
+    fontWeight: "bold",
+  },
+
+  detailValue: {
+    flex: 1,
+    fontSize: 7.4,
+    color: BRAND.black,
+    fontWeight: "bold",
+  },
+
+  photoColumn: {
+    width: 58,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  photoFrameOuter: {
+    width: 53,
+    height: 53,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BRAND.greenSoft,
+    backgroundColor: BRAND.greenVerySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  photoFrame: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    backgroundColor: BRAND.white,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 5,
+  },
+
+  photo: {
+    width: 38,
+    height: 38,
+  },
+
+  fallbackLogoText: {
+    color: BRAND.greenDark,
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+
+  fallbackPhotoText: {
+    color: BRAND.greenDark,
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+
+  nameArea: {
+    position: "absolute",
+    left: 16,
+    bottom: 10,
+    width: CARD_W - 32,
+    height: 28,
+    justifyContent: "center",
+  },
+
+  nameShadow: {
+    position: "absolute",
+    left: 2,
+    top: 4,
+    width: CARD_W - 36,
+    height: 22,
+    borderRadius: 9,
+    backgroundColor: BRAND.greenDeep,
+    opacity: 0.18,
+  },
+
+  nameBand: {
+    height: 24,
+    borderRadius: 9,
+    backgroundColor: BRAND.greenDark,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingLeft: 30,
+    paddingRight: 30,
+    position: "relative",
+    borderWidth: 0.6,
+    borderColor: BRAND.greenDeep,
+  },
+
+  nameTopHighlight: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    top: 2,
+    height: 1,
+    backgroundColor: BRAND.white,
+    opacity: 0.35,
+  },
+
+  nameBlueLeft: {
+    position: "absolute",
+    left: 9,
+    top: 10.5,
+    width: 14,
+    height: 2.5,
+    borderRadius: 2,
+    backgroundColor: BRAND.blue,
+  },
+
+  nameBlueRight: {
+    position: "absolute",
+    right: 9,
+    top: 10.5,
+    width: 14,
+    height: 2.5,
+    borderRadius: 2,
+    backgroundColor: BRAND.blue,
+  },
+
+  nameText: {
+    color: BRAND.white,
+    fontSize: 8.2,
+    fontWeight: "bold",
+    textAlign: "center",
+    letterSpacing: 0.3,
+  },
+
+  bottomAccent: {
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    width: CARD_W,
+    height: 4,
+    flexDirection: "row",
+  },
+
+  bottomGreen: {
+    flex: 1,
+    backgroundColor: BRAND.greenDark,
+  },
+
+  bottomBlue: {
+    width: 50,
+    backgroundColor: BRAND.blue,
+  },
+
+  bottomGreenDark: {
+    flex: 1,
+    backgroundColor: BRAND.greenDeep,
+  },
+
+  cornerDotOne: {
+    position: "absolute",
+    right: 9,
+    top: 12,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: BRAND.blue,
+    opacity: 0.9,
+  },
+
+  cornerDotTwo: {
+    position: "absolute",
+    right: 16,
+    top: 12,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: BRAND.greenDark,
+    opacity: 0.9,
+  },
+
+  emptyText: {
+    fontSize: 14,
+    color: BRAND.black,
+  },
+});
+
+function SafeLogo({ src, style, fallbackStyle }) {
+  if (isValidImageSrc(src)) {
+    return <Image src={src} style={style} />;
+  }
+
+  return <Text style={fallbackStyle}>S</Text>;
+}
+
+function StudentTag({ student, logoDataUrl }) {
+  const { form, stream } = getStudentClassParts(student);
+  const year = getYear(student);
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.softGreenCircle} />
+      <View style={styles.softBlueCircle} />
+      <View style={styles.innerBorder} />
+      <View style={styles.sideAccent} />
+      <View style={styles.cornerDotOne} />
+      <View style={styles.cornerDotTwo} />
+
+      {isValidImageSrc(logoDataUrl) && (
+        <View style={styles.watermarkWrap}>
+          <Image src={logoDataUrl} style={styles.watermarkImage} />
+        </View>
+      )}
+
+      <View style={styles.topStrip}>
+        <View style={styles.blueStrip} />
+      </View>
+
+      <View style={styles.header}>
+        <View style={styles.headerLogoSlot}>
+          <View style={styles.logoBox}>
+            <SafeLogo
+              src={logoDataUrl}
+              style={styles.logo}
+              fallbackStyle={styles.fallbackLogoText}
+            />
+          </View>
+        </View>
+
+        <View style={styles.headerText}>
+          <Text style={styles.schoolName} wrap={false}>
+            SHAMSIYE SCHOOLS
+          </Text>
+
+          <Text style={styles.motto} wrap={false}>
+            ACCESS TO SUCCESS
+          </Text>
+        </View>
+
+        <View style={styles.headerLogoSlot}>
+          <View style={styles.logoBox}>
+            <SafeLogo
+              src={logoDataUrl}
+              style={styles.logo}
+              fallbackStyle={styles.fallbackLogoText}
+            />
+          </View>
+        </View>
+
+        <View style={styles.headerGreenLine} />
+        <View style={styles.headerBlueLine} />
+      </View>
+
+      <View style={styles.body}>
+        <View style={styles.details}>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel} wrap={false}>
+              FORM
+            </Text>
+
+            <Text style={styles.detailColon} wrap={false}>
+              :
+            </Text>
+
+            <Text style={styles.detailValue} wrap={false}>
+              {normalizeForm(form)}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel} wrap={false}>
+              STREAM
+            </Text>
+
+            <Text style={styles.detailColon} wrap={false}>
+              :
+            </Text>
+
+            <Text style={styles.detailValue} wrap={false}>
+              {normalizeStreamLetter(stream)}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel} wrap={false}>
+              YEAR
+            </Text>
+
+            <Text style={styles.detailColon} wrap={false}>
+              :
+            </Text>
+
+            <Text style={styles.detailValue} wrap={false}>
+              {year}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.photoColumn}>
+          <View style={styles.photoFrameOuter}>
+            <View style={styles.photoFrame}>
+              <SafeLogo
+                src={logoDataUrl}
+                style={styles.photo}
+                fallbackStyle={styles.fallbackPhotoText}
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.nameArea}>
+        <View style={styles.nameShadow} />
+
+        <View style={styles.nameBand}>
+          <View style={styles.nameTopHighlight} />
+          <View style={styles.nameBlueLeft} />
+
+          <Text style={styles.nameText} wrap={false}>
+            {U(student?.name)}
+          </Text>
+
+          <View style={styles.nameBlueRight} />
+        </View>
+      </View>
+
+      <View style={styles.bottomAccent}>
+        <View style={styles.bottomGreen} />
+        <View style={styles.bottomBlue} />
+        <View style={styles.bottomGreenDark} />
+      </View>
+    </View>
+  );
 }
 
 export default function TagsDocument({ students, logoDataUrl }) {
   const safeStudents = Array.isArray(students) ? students : [];
-
-  const PER_PAGE = 21;
-  const pages = chunk(safeStudents, PER_PAGE);
+  const preparedStudents = prepareStudents(safeStudents);
+  const pages = chunk(preparedStudents, PER_PAGE);
 
   return (
     <Document>
-      {pages.map((pageStudents, pageIndex) => (
-        <Page key={`page-${pageIndex}`} size="A4" style={styles.page}>
-          <View style={styles.grid}>
-            {pageStudents.map((s, idx) => (
-              <View key={s?.id ?? `student-${idx}`} style={styles.cell}>
-                <TagPDF student={s} logoDataUrl={logoDataUrl} />
-              </View>
-            ))}
-          </View>
+      {pages.length === 0 ? (
+        <Page size="A4" style={styles.page}>
+          <Text style={styles.emptyText}>No students found.</Text>
         </Page>
-      ))}
+      ) : (
+        pages.map((pageStudents, pageIndex) => (
+          <Page key={`page-${pageIndex}`} size="A4" style={styles.page}>
+            <View style={styles.grid}>
+              {pageStudents.map((student, index) => {
+                const globalIndex = pageIndex * PER_PAGE + index;
+
+                return (
+                  <View
+                    key={student?.id || `student-${globalIndex}`}
+                    style={getCellStyle(index, pageStudents.length)}
+                  >
+                    <StudentTag student={student} logoDataUrl={logoDataUrl} />
+                  </View>
+                );
+              })}
+            </View>
+          </Page>
+        ))
+      )}
     </Document>
   );
 }
