@@ -17,14 +17,17 @@ const FORM_STREAM_OPTIONS = {
 const CURRENT_YEAR = "2026";
 
 const BRAND = {
-  green: "#3FAE3A",
-  greenDark: "#2E8F2D",
-  greenDeep: "#1F6F22",
-  greenSoft: "#F1FBF0",
+  // Primary blue picked from the Shamsiye logo.
+  // I keep the old key names because many styles already use them.
+  green: "#0F90CA",
+  greenDark: "#0879A8",
+  greenDeep: "#075F86",
+  greenSoft: "#E8F6FC",
 
-  blue: "#16B8CF",
-  blueDark: "#0891B2",
-  blueSoft: "#E8FAFD",
+  // Secondary accent from the logo green.
+  blue: "#4F9637",
+  blueDark: "#3F7F2E",
+  blueSoft: "#EEF8EA",
 
   black: "#111827",
   text: "#111827",
@@ -185,6 +188,7 @@ const parseFormAndStream = (input, maybeStream) => {
   let match = spaced.match(
     /^(ONE|TWO|THREE|FOUR|FIVE|SIX)\s+([A-Z0-9]{1,5})$/
   );
+
   if (match) {
     const formClean = normalizeForm(match[1]);
 
@@ -195,6 +199,7 @@ const parseFormAndStream = (input, maybeStream) => {
   }
 
   match = spaced.match(/^(\d+)\s+([A-Z0-9]{1,5})$/);
+
   if (match) {
     const formClean = normalizeForm(match[1]);
 
@@ -205,6 +210,7 @@ const parseFormAndStream = (input, maybeStream) => {
   }
 
   match = compact.match(/^(ONE|TWO|THREE|FOUR|FIVE|SIX)([A-Z0-9]{1,5})$/);
+
   if (match) {
     const formClean = normalizeForm(match[1]);
 
@@ -215,6 +221,7 @@ const parseFormAndStream = (input, maybeStream) => {
   }
 
   match = compact.match(/^(\d+)([A-Z0-9]{1,5})$/);
+
   if (match) {
     const formClean = normalizeForm(match[1]);
 
@@ -249,6 +256,25 @@ const getStudentClassParts = (student) => {
   return parseFormAndStream(student);
 };
 
+const normalizeRoom = (value) => {
+  if (value == null) return "";
+
+  return String(value)
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const getRoom = (student) => {
+  return normalizeRoom(
+    student?.room ??
+      student?.roomNumber ??
+      student?.roomNo ??
+      student?.room_no ??
+      ""
+  );
+};
+
 const countStudentsInClass = (students, form, stream) => {
   const targetCode = cleanClassCode(form, stream);
 
@@ -269,6 +295,7 @@ const generateStudentId = (form, stream, year, students) => {
 function IdCardPreview({ student }) {
   const { form, stream } = getStudentClassParts(student);
   const year = student?.year || CURRENT_YEAR;
+  const room = getRoom(student) || "ROOM";
 
   return (
     <div className="idCardPreview">
@@ -301,6 +328,12 @@ function IdCardPreview({ student }) {
             <b>{getStreamLabel(form)}</b>
             <span>:</span>
             <strong>{stream}</strong>
+          </div>
+
+          <div>
+            <b>ROOM</b>
+            <span>:</span>
+            <strong>{room}</strong>
           </div>
 
           <div>
@@ -348,6 +381,7 @@ export default function Generator() {
   const [stream, setStream] = useState(savedClass.stream);
 
   const [name, setName] = useState("");
+  const [room, setRoom] = useState("");
   const [year, setYear] = useState(CURRENT_YEAR);
 
   const availableStreams = useMemo(() => getStreamsForForm(form), [form]);
@@ -381,6 +415,7 @@ export default function Generator() {
         stream: safeStream,
         className: formatClassLabel(safeForm, safeStream),
         year: safeYear,
+        room: getRoom(student),
         studentId: generatedId,
         photoDataUrl: student?.photoDataUrl ?? "",
       };
@@ -408,6 +443,7 @@ export default function Generator() {
         stream: safeStream,
         className: formatClassLabel(safeForm, safeStream),
         year: student?.year || CURRENT_YEAR,
+        room: getRoom(student),
         studentId: student?.studentId,
         photoDataUrl: student?.photoDataUrl ?? "",
       };
@@ -439,6 +475,7 @@ export default function Generator() {
     stream,
     className: formatClassLabel(form, stream),
     year: year || CURRENT_YEAR,
+    room: normalizeRoom(room) || "ROOM",
     studentId: previewStudentId,
   };
 
@@ -446,9 +483,11 @@ export default function Generator() {
     const NAME = sanitizeNameForSave(name);
     const FORM = normalizeForm(form);
     const STREAM = normalizeStream(stream, FORM);
+    const ROOM = normalizeRoom(room);
     const YEAR = String(year || CURRENT_YEAR).trim();
 
     if (!NAME) return alert("ENTER FULL NAME");
+    if (!ROOM) return alert("ENTER ROOM NUMBER");
 
     const STUDENT_ID = generateStudentId(FORM, STREAM, YEAR, students);
 
@@ -460,6 +499,7 @@ export default function Generator() {
         stream: STREAM,
         className: formatClassLabel(FORM, STREAM),
         year: YEAR,
+        room: ROOM,
         studentId: STUDENT_ID,
         photoDataUrl: "",
       },
@@ -467,6 +507,7 @@ export default function Generator() {
     ]);
 
     setName("");
+    setRoom("");
   };
 
   const removeStudent = (id) => {
@@ -501,7 +542,7 @@ export default function Generator() {
       width: "100%",
       overflowX: "hidden",
       background:
-        "linear-gradient(180deg, #f1fbf0 0%, #ffffff 42%, #f8fafc 100%)",
+        "linear-gradient(180deg, #E8F6FC 0%, #ffffff 42%, #f8fafc 100%)",
       fontFamily:
         'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial',
       color: BRAND.text,
@@ -515,7 +556,7 @@ export default function Generator() {
       background: "rgba(255, 255, 255, .96)",
       backdropFilter: "blur(14px)",
       borderBottom: `1px solid ${BRAND.border}`,
-      boxShadow: "0 12px 28px rgba(46, 143, 45, 0.10)",
+      boxShadow: "0 12px 28px rgba(15, 144, 202, 0.10)",
     },
 
     headerInner: {
@@ -546,7 +587,7 @@ export default function Generator() {
       display: "grid",
       placeItems: "center",
       overflow: "hidden",
-      boxShadow: "0 10px 24px rgba(46, 143, 45, 0.14)",
+      boxShadow: "0 10px 24px rgba(15, 144, 202, 0.14)",
       padding: 4,
       flexShrink: 0,
     },
@@ -598,7 +639,7 @@ export default function Generator() {
       cursor: "pointer",
       fontWeight: 950,
       color: BRAND.white,
-      boxShadow: "0 10px 22px rgba(46, 143, 45, 0.22)",
+      boxShadow: "0 10px 22px rgba(15, 144, 202, 0.22)",
       minHeight: 44,
     },
 
@@ -716,7 +757,7 @@ export default function Generator() {
       fontWeight: 950,
       color: BRAND.white,
       fontSize: 15,
-      boxShadow: "0 12px 24px rgba(46, 143, 45, 0.22)",
+      boxShadow: "0 12px 24px rgba(15, 144, 202, 0.22)",
       minHeight: 52,
     },
 
@@ -878,7 +919,7 @@ export default function Generator() {
           z-index: 2;
           flex-shrink: 0;
           border: 1px solid ${BRAND.border};
-          box-shadow: 0 8px 18px rgba(46, 143, 45, 0.10);
+          box-shadow: 0 8px 18px rgba(15, 144, 202, 0.10);
           overflow: hidden;
         }
 
@@ -957,7 +998,7 @@ export default function Generator() {
           place-items: center;
           padding: 10px;
           flex-shrink: 0;
-          box-shadow: 0 10px 22px rgba(46, 143, 45, 0.12);
+          box-shadow: 0 10px 22px rgba(15, 144, 202, 0.12);
           overflow: hidden;
         }
 
@@ -1041,7 +1082,7 @@ export default function Generator() {
           width: 100%;
           border-collapse: separate;
           border-spacing: 0;
-          min-width: 720px;
+          min-width: 820px;
         }
 
         .studentsTable th {
@@ -1064,11 +1105,11 @@ export default function Generator() {
         }
 
         .studentsTable tbody tr:nth-child(even) td {
-          background: #fcfffd;
+          background: #f8fcff;
         }
 
         .studentsTable tbody tr:hover td {
-          background: #f1fbf0;
+          background: #e8f6fc;
         }
 
         .dangerBtn {
@@ -1464,9 +1505,7 @@ export default function Generator() {
               <h2 className="generatorTitle" style={S.title}>
                 SHAMSIYE • LOCKER TAG GENERATOR
               </h2>
-              <p className="generatorSub" style={S.sub}>
-                
-              </p>
+              <p className="generatorSub" style={S.sub}></p>
             </div>
           </div>
 
@@ -1503,8 +1542,8 @@ export default function Generator() {
               Add Student Tag
             </h3>
             <p className="sectionSubMobile" style={S.sectionSub}>
-              Enter student name, form, and stream. The saved structure is now
-              form and stream separately.
+              Enter student name, form, stream, room number, and year. The saved
+              structure keeps these values separately for cleaner PDF tags.
             </p>
 
             <div className="generatorFormGrid" style={S.formGrid}>
@@ -1556,7 +1595,17 @@ export default function Generator() {
                 </select>
               </div>
 
-              <div className="mobileFullField" style={S.fullField}>
+              <div className="mobileFullField">
+                <div style={S.label}>ROOM NUMBER</div>
+                <input
+                  value={room}
+                  onChange={(e) => setRoom(normalizeRoom(e.target.value))}
+                  placeholder='e.g. "ROOM 12" or "12"'
+                  style={S.input}
+                />
+              </div>
+
+              <div className="mobileFullField">
                 <div style={S.label}>YEAR</div>
                 <input
                   value={year}
@@ -1621,7 +1670,7 @@ export default function Generator() {
             </h3>
             <p style={S.sectionSub}>
               These students will be exported in the PDF using separate form,
-              stream or combination, and year values.
+              stream or combination, room number, and year values.
             </p>
 
             <div className="tableWrapResponsive" style={S.tableWrap}>
@@ -1631,6 +1680,7 @@ export default function Generator() {
                     <th>FULL NAME</th>
                     <th>FORM</th>
                     <th>STREAM / COMBINATION</th>
+                    <th>ROOM</th>
                     <th>YEAR</th>
                     <th>ACTION</th>
                   </tr>
@@ -1657,6 +1707,10 @@ export default function Generator() {
                           {parts.stream}
                         </td>
 
+                        <td data-label="ROOM" style={{ fontWeight: 950 }}>
+                          {getRoom(student) || "—"}
+                        </td>
+
                         <td data-label="YEAR">
                           {student.year || CURRENT_YEAR}
                         </td>
@@ -1677,7 +1731,7 @@ export default function Generator() {
                     <tr>
                       <td
                         className="emptyRowCell"
-                        colSpan="5"
+                        colSpan="6"
                         style={{
                           padding: 20,
                           color: BRAND.muted,

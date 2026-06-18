@@ -8,14 +8,17 @@ import SHAMSIYE_LOGO from "../assets/images/shamsiye.jpeg";
 const CURRENT_YEAR = "2026";
 
 const BRAND = {
-  green: "#3FAE3A",
-  greenDark: "#2E8F2D",
-  greenDeep: "#1F6F22",
-  greenSoft: "#F1FBF0",
+  // Primary blue picked from the Shamsiye logo.
+  // Kept the old key names because many styles already use them.
+  green: "#0F90CA",
+  greenDark: "#0879A8",
+  greenDeep: "#075F86",
+  greenSoft: "#E8F6FC",
 
-  blue: "#16B8CF",
-  blueDark: "#0891B2",
-  blueSoft: "#E8FAFD",
+  // Secondary accent from the logo green.
+  blue: "#4F9637",
+  blueDark: "#3F7F2E",
+  blueSoft: "#EEF8EA",
 
   black: "#111827",
   muted: "#64748B",
@@ -235,6 +238,25 @@ const getYear = (student) => {
   return student?.year || student?.session || CURRENT_YEAR;
 };
 
+const normalizeRoom = (value) => {
+  if (value == null) return "";
+
+  return String(value)
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const getRoom = (student) => {
+  return normalizeRoom(
+    student?.room ??
+      student?.roomNumber ??
+      student?.roomNo ??
+      student?.room_no ??
+      ""
+  );
+};
+
 const convertImageToSafePngDataUrl = (imageUrl) => {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
@@ -284,6 +306,7 @@ const convertImageToSafePngDataUrl = (imageUrl) => {
 function TagPreview({ student }) {
   const { form, stream } = getStudentClassParts(student);
   const year = getYear(student);
+  const room = getRoom(student) || "ROOM";
 
   return (
     <div className="tagPreview">
@@ -316,6 +339,12 @@ function TagPreview({ student }) {
             <b>{getStreamLabel(form)}</b>
             <span>:</span>
             <strong>{normalizeStream(stream, form)}</strong>
+          </div>
+
+          <div>
+            <b>ROOM</b>
+            <span>:</span>
+            <strong>{room}</strong>
           </div>
 
           <div>
@@ -398,6 +427,7 @@ export default function Verify() {
         formStream: classLabel,
 
         year: safeYear,
+        room: getRoom(student),
         photoDataUrl: student?.photoDataUrl || "",
       };
     });
@@ -418,6 +448,7 @@ export default function Verify() {
 
         originalForm: student.form,
         originalStream: student.stream,
+        room: getRoom(student),
         streamLabel: getStreamLabel(student.form),
       };
     });
@@ -434,7 +465,7 @@ export default function Verify() {
     page: {
       minHeight: "100vh",
       background:
-        "linear-gradient(180deg, #f1fbf0 0%, #ffffff 42%, #f8fafc 100%)",
+        "linear-gradient(180deg, #E8F6FC 0%, #ffffff 42%, #f8fafc 100%)",
       padding: "clamp(12px, 2.5vw, 24px)",
       fontFamily:
         'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial',
@@ -453,7 +484,7 @@ export default function Verify() {
       border: `1px solid ${BRAND.border}`,
       borderRadius: 22,
       padding: "clamp(14px, 2.4vw, 20px)",
-      boxShadow: "0 18px 42px rgba(46, 143, 45, 0.11)",
+      boxShadow: "0 18px 42px rgba(15, 144, 202, 0.11)",
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
@@ -479,7 +510,7 @@ export default function Verify() {
       placeItems: "center",
       overflow: "hidden",
       flexShrink: 0,
-      boxShadow: "0 10px 24px rgba(46, 143, 45, 0.13)",
+      boxShadow: "0 10px 24px rgba(15, 144, 202, 0.13)",
       padding: 4,
     },
 
@@ -536,7 +567,7 @@ export default function Verify() {
       cursor: "pointer",
       fontWeight: 950,
       color: BRAND.white,
-      boxShadow: "0 12px 24px rgba(46, 143, 45, 0.22)",
+      boxShadow: "0 12px 24px rgba(15, 144, 202, 0.22)",
       textDecoration: "none",
       minHeight: 44,
     },
@@ -722,7 +753,7 @@ export default function Verify() {
           z-index: 2;
           flex-shrink: 0;
           border: 1px solid ${BRAND.border};
-          box-shadow: 0 8px 18px rgba(46, 143, 45, 0.10);
+          box-shadow: 0 8px 18px rgba(15, 144, 202, 0.10);
           overflow: hidden;
         }
 
@@ -809,7 +840,7 @@ export default function Verify() {
           place-items: center;
           padding: clamp(7px, 1.4vw, 10px);
           flex-shrink: 0;
-          box-shadow: 0 10px 22px rgba(46, 143, 45, 0.12);
+          box-shadow: 0 10px 22px rgba(15, 144, 202, 0.12);
           overflow: hidden;
         }
 

@@ -18,14 +18,8 @@ import {
  * No Official Tag
  * Bottom contains only student name
  * FORM and STREAM/COMBINATION separated
+ * Room number included
  * Real logo restored using logoDataUrl from Verify.jsx
- * Header: left logo + centered school name + right logo
- *
- * Supports:
- * - Form ONE, TWO, THREE, FOUR with streams A, B, C
- * - Form FIVE and SIX with combinations HGE, EGM, PCM, PCB, CBG
- * - old values like "1A", "1 A", "ONEB", "ONE B"
- * - new values like "6PCM", "6 PCM", "SIXPCM", "SIX PCM"
  */
 
 const A4_W = 595.28;
@@ -46,16 +40,20 @@ const CARD_H = (A4_H - PAGE_PADDING_Y * 2 - ROW_GAP * (ROWS - 1)) / ROWS;
 const CURRENT_YEAR = "2026";
 
 const BRAND = {
-  greenDark: "#2E8F2D",
-  greenDeep: "#1F6F22",
-  greenSoft: "#F1FBF0",
-  greenVerySoft: "#F8FFF7",
-  blue: "#16B8CF",
-  blueSoft: "#E8FAFD",
+  // Main blue picked from the Shamsiye logo
+  greenDark: "#0F90CA",
+  greenDeep: "#075F86",
+  greenSoft: "#E8F6FC",
+  greenVerySoft: "#F5FBFE",
+
+  // Small green accent picked from the Shamsiye logo
+  blue: "#4F9637",
+  blueSoft: "#EEF8EA",
+
   black: "#111827",
   muted: "#64748B",
   border: "#DCE7EA",
-  borderSoft: "#EEF6F0",
+  borderSoft: "#DFF1F8",
   white: "#FFFFFF",
 };
 
@@ -277,6 +275,25 @@ const getYear = (student) => {
   return student?.year || student?.session || CURRENT_YEAR;
 };
 
+const normalizeRoom = (value) => {
+  if (value == null) return "";
+
+  return String(value)
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const getRoom = (student) => {
+  return normalizeRoom(
+    student?.room ??
+      student?.roomNumber ??
+      student?.roomNo ??
+      student?.room_no ??
+      ""
+  );
+};
+
 const prepareStudents = (students) => {
   return students.map((student) => {
     const parts = getStudentClassParts(student);
@@ -293,6 +310,7 @@ const prepareStudents = (students) => {
       className: safeClassLabel,
       formStream: safeClassLabel,
       year: getYear(student),
+      room: getRoom(student),
     };
   });
 };
@@ -502,9 +520,9 @@ const styles = StyleSheet.create({
   },
 
   body: {
-    height: 56,
+    height: 64,
     flexDirection: "row",
-    paddingTop: 6,
+    paddingTop: 5,
     paddingLeft: 14,
     paddingRight: 14,
   },
@@ -516,10 +534,10 @@ const styles = StyleSheet.create({
   },
 
   detailRow: {
-    height: 14,
+    height: 12,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 3,
+    marginBottom: 2,
     paddingLeft: 5,
     paddingRight: 5,
     borderRadius: 5,
@@ -530,7 +548,7 @@ const styles = StyleSheet.create({
 
   detailLabel: {
     width: 58,
-    fontSize: 5.6,
+    fontSize: 5.2,
     color: BRAND.black,
     fontWeight: "bold",
   },
@@ -544,7 +562,7 @@ const styles = StyleSheet.create({
 
   detailValue: {
     flex: 1,
-    fontSize: 7.4,
+    fontSize: 7,
     color: BRAND.black,
     fontWeight: "bold",
   },
@@ -732,6 +750,7 @@ function StudentTag({ student, logoDataUrl }) {
   const safeForm = normalizeForm(form);
   const safeStream = normalizeStream(stream, safeForm);
   const year = getYear(student);
+  const room = getRoom(student) || "ROOM";
   const streamLabel = getStreamLabel(safeForm);
 
   return (
@@ -815,6 +834,20 @@ function StudentTag({ student, logoDataUrl }) {
 
             <Text style={styles.detailValue} wrap={false}>
               {safeStream}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel} wrap={false}>
+              ROOM
+            </Text>
+
+            <Text style={styles.detailColon} wrap={false}>
+              :
+            </Text>
+
+            <Text style={styles.detailValue} wrap={false}>
+              {room}
             </Text>
           </View>
 
